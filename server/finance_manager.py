@@ -13,5 +13,5 @@ class FinanceManager:
     # - a method to return a FEATURED* list of securities to look at on explore landing poge
     # - other stuff that could be useful??
     #
-    # Maybe it would make the codebase neater if instead of returning dicts or wtv
-    # yfinance returns make our own custom security object resembling db_items.Holding for example
+    # Maybe it would make the codebase neater if instead of returning dicts or wtv it is that
+    # yfinance returns we make our own custom security object resembling db_items.Holding for example
