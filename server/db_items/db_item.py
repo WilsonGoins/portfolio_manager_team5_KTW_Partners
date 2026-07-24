@@ -1,16 +1,16 @@
-from abc import ABC, abstactmethod
+from abc import ABC, abstractmethod
 from typing import Self
 
 
 class ADataBaseItem(ABC):
 
     @classmethod
-    @abstactmethod
+    @abstractmethod
     def from_dict(cls, class_as_dict: dict) -> Self:
         """Convert DB row into python object."""
         pass
 
-    @abstactmethod
+    @abstractmethod
     def to_dict(self):
         """Serialize python object to dict."""
         pass

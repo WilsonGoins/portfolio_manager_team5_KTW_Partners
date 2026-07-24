@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Self
-from db_item import ADataBaseItem
+from .db_item import ADataBaseItem
 
 
 class Transaction(ADataBaseItem):

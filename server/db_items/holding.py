@@ -1,4 +1,4 @@
-from db_item import ADataBaseItem
+from .db_item import ADataBaseItem
 from typing import Self
 
 
