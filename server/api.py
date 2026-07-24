@@ -12,7 +12,7 @@ DB_CONNECTION_STR = os.getenv("DB_CONNECTION_STRING")
 app = Flask(__name__)
 
 logging.basicConfig(
-    level=logging.INFO  # change to DEBUG when for cache
+    level=logging.INFO  # change to DEBUG for db cache logging
 )
 
 db_manager = DBManager(
