@@ -7,7 +7,7 @@ from db_items import Holding, Transaction
 app = Flask(__name__)
 
 logging.basicConfig(
-    level=logging.INFO  # change to DEBUG when for cache
+    level=logging.INFO  # change to DEBUG for db cache logging
 )
 
 DB_CONNECTION_STR = "CONNECTION STRING HERE FROM sys.env or .env file"
