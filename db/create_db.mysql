@@ -23,6 +23,6 @@ CREATE TABLE transactions (
   ticker CHAR(5) NOT NULL,
   quantity INT NOT NULL,
   price DECIMAL(10, 4) NOT NULL,
-  purchase_date TIMESTAMP NOT NULL,
+  trans_date TIMESTAMP NOT NULL,
   action_taken VARCHAR(15) NOT NULL,
 );

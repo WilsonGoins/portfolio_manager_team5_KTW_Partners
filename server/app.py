@@ -1,5 +1,6 @@
 from flask import Flask, jsonify
 from db import DBManager
+from db_items import Holding, Transaction
 
 app = Flask(__name__)
 
