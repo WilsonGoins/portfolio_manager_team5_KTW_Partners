@@ -10,7 +10,7 @@ logging.basicConfig(
     level=logging.INFO  # change to DEBUG for db cache logging
 )
 
-DB_CONNECTION_STR = "CONNECTION STRING HERE FROM sys.env or .env file"
+DB_CONNECTION_STR = process.env.get("DB_CONNECTION_STRING")
 db_manager = DBManager(
     DB_CONNECTION_STR,
     flask_logger=app.logger,
