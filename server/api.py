@@ -1,8 +1,13 @@
 import logging
+import os
 from flask import Flask, jsonify
 from db_manager import DBManager
+from dotenv import load_dotenv
 from finance_manager import FinanceManager
 from db_items import Holding, Transaction
+
+load_dotenv()
+DB_CONNECTION_STR = os.getenv("DB_CONNECTION_STRING")
 
 app = Flask(__name__)
 
@@ -10,7 +15,6 @@ logging.basicConfig(
     level=logging.INFO  # change to DEBUG when for cache
 )
 
-DB_CONNECTION_STR = "CONNECTION STRING HERE FROM sys.env or .env file"
 db_manager = DBManager(
     DB_CONNECTION_STR,
     flask_logger=app.logger,
