@@ -1,9 +1,8 @@
-CREATE DATABASE portfolio
+DROP DATABASE IF EXISTS portfolio;
+CREATE DATABASE portfolio;
 
-USE portfolio
-
-DROP TABLE IF EXISTS holdings
-DROP TABLE IF EXISTS transactions
+DROP TABLE IF EXISTS holdings;
+DROP TABLE IF EXISTS transactions;
 
 CREATE TABLE holdings (
   ticker CHAR(5) PRIMARY KEY,
@@ -17,12 +16,11 @@ CREATE TABLE holdings (
   allocation_percentage DECIMAL(10, 4)
 );
 
-
 CREATE TABLE transactions (
-  trans_id INT AUTO_INCREMENT PRIMARY KEY,
+  trans_id SERIAL PRIMARY KEY,
   ticker CHAR(5) NOT NULL,
   quantity INT NOT NULL,
   price DECIMAL(10, 4) NOT NULL,
   trans_date TIMESTAMP NOT NULL,
-  action_taken VARCHAR(15) NOT NULL,
+  action_taken VARCHAR(15) NOT NULL
 );
