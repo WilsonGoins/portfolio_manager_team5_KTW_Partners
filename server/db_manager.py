@@ -1,8 +1,9 @@
 import psycopg
 import logging
 from typing import Any
-from db_items import Holding, Transaction
+from db_items import Holding, Transaction, PortfolioValue
 from psycopg.rows import dict_row
+from datetime import datetime
 
 
 class DBManager():
@@ -39,6 +40,52 @@ class DBManager():
 
     # -------------------- READ --------------------
 
+    def get_portfolio_value(self, p_date: datetime) -> PortfolioValue:
+        if self._enable_cache and f"pv:{p_date}" in self._cache:
+            self.logger.debug(f"Cache[HIT] \"pv:{p_date}\": {
+                              self._cache[f"pv:{p_date}"]}")
+            return self._cache[f"pv:{p_date}"]
+        else:
+            self.logger.debug(f"Cache[MISS] \"pv:{p_date}\"")
+
+        with self._conn.cursor() as cur:
+            cur.execute("SELECT * FROM portfolio_value WHERE p_date = %s",
+                        [p_date])
+
+            pv_dict = cur.fetchone()
+            if pv_dict is None:
+                return None
+
+            pv = PortfolioValue.from_dict(pv_dict)
+            if self._enable_cache:
+                self._cache[f"pv:{p_date}"] = pv
+                self.logger.debug(f"CACHE[UPDATE] \"pv:{
+                    p_date}\": {pv}")
+
+            return pv
+
+    def get_portfolio_values(self) -> list[PortfolioValue]:
+        if self._enable_cache and "portfolio_values" in self._cache:
+            self.logger.debug(f"Cache[HIT] \"portfolio_values\": {
+                              self._cache["portfolio_values"]}")
+            return self._cache["portfolio_values"]
+        else:
+            self.logger.debug("Cache[MISS] \"portfolio_values\"")
+
+        with self._conn.cursor() as cur:
+            cur.execute("SELECT * FROM portfolio_value")
+
+            portfolio_values: list[PortfolioValue] = []
+            for pv_dict in cur.fetchall():
+                portfolio_values.append(PortfolioValue.from_dict(pv_dict))
+
+            if self._enable_cache:
+                self._cache["portfolio_values"] = portfolio_values
+                self.logger.debug(f"CACHE[UPDATE] \"portfolio_values\": {
+                                  portfolio_values}")
+
+            return portfolio_values
+
     def get_holding(self, ticker_symbol: str) -> Holding | None:
         if self._enable_cache and f"holding:{ticker_symbol}" in self._cache:
             self.logger.debug(f"Cache[HIT] \"holding:{ticker_symbol}\": {
@@ -48,7 +95,7 @@ class DBManager():
             self.logger.debug(f"Cache[MISS] \"holding:{ticker_symbol}\"")
 
         with self._conn.cursor() as cur:
-            cur.execute("SELECT * FROM holdings WHERE id = %s",
+            cur.execute("SELECT * FROM holdings WHERE ticker = %s",
                         [ticker_symbol])
 
             holding_dict = cur.fetchone()
@@ -94,7 +141,7 @@ class DBManager():
             self.logger.debug(f"Cache[MISS] \"transaction:{trans_id}\"")
 
         with self._conn.cursor() as cur:
-            cur.execute("SELECT * FROM transactions WHERE id = %s",
+            cur.execute("SELECT * FROM transactions WHERE trans_id = %s",
                         [trans_id])
 
             transaction_dict = cur.fetchone()
