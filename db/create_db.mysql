@@ -9,13 +9,7 @@ CREATE TABLE holdings (
   name VARCHAR(20) NOT NULL,
   h_type VARCHAR(10),
   quantity_shares INT NOT NULL,
-  current_price DECIMAL(10, 4) NOT NULL,
-  market_value DECIMAL(10, 4) NOT NULL,
-  change_today DECIMAL(7,4),
-  gain_loss DECIMAL(10, 4),
-  allocation_percentage DECIMAL(10, 4)
 );
-
 CREATE TABLE transactions (
   trans_id SERIAL PRIMARY KEY,
   ticker CHAR(5) NOT NULL,

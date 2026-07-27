@@ -27,8 +27,15 @@ class DBManager():
             self.logger.error(
                 "WE SHOULD RERAISE HERE TO BE HANDLED IN API CONTROLLER")
 
-    def empty_cache(self):
-        self._cache = {}
+    def empty_cache(self, key: str = None):
+        if key is None:
+            self._cache = {}
+            self._enable_cache and self.logger.debug(
+                "Cache[DELETE] Cleared all keys.")
+        else:
+            self._cache.pop(key)
+            self._enable_cache and self.logger.debug(
+                f"Cache[DELETE] Cleared cache for key: {key}")
 
     # -------------------- READ --------------------
 
@@ -126,23 +133,59 @@ class DBManager():
     # -------------------- CREATE --------------------
 
     def add_holding(self, holding: Holding) -> list[Holding]:
-        raise NotImplementedError
+        with self._conn.cursor() as cur:
+            cur.execute("INSERT INTO holdings (ticker, name, h_type, quantity_shares) VALUES (%s, %s, %s, %s)",
+                        [holding.ticker, holding.name, holding.h_type, holding.quantity_shares])
+            self._conn.commit()
+            self.empty_cache()
+
+        return self.get_holdings()
 
     def add_transaction(self, transaction: Transaction) -> list[Transaction]:
-        raise NotImplementedError
+        with self._conn.cursor() as cur:
+            cur.execute("INSERT INTO transactions (ticker, quantity, price, trans_date, action_taken) VALUES (%s, %s, %s, %s, %s)",
+                        [transaction.ticker, transaction.quantity, transaction.price, str(transaction.trans_date), transaction.action_taken])
+            self._conn.commit()
+            self.empty_cache()
+
+        return self.get_transactions()
 
     # -------------------- UPDATE --------------------
 
     def update_holding(self, holding: Holding) -> Holding:
-        raise NotImplementedError
+        with self._conn.cursor() as cur:
+            cur.execute("UPDATE holdings SET name=%s, h_type=%s, quantity_shares=%s WHERE ticker=%s",
+                        [holding.name, holding.h_type, holding.quantity_shares, holding.ticker])
+            self._conn.commit()
+            self.empty_cache(key="holdings")
+
+        return self.get_holdings()
 
     def update_transaction(self, transaction: Transaction) -> Transaction:
-        raise NotImplementedError
+        with self._conn.cursor() as cur:
+            cur.execute("UPDATE transactions SET ticker=%s, quantity=%s, price=%s, trans_date=%s, action_taken=%s  WHERE trans_id=%s",
+                        [transaction.ticker, transaction.quantity, transaction.price, transaction.date, transaction.action_taken, transaction.trans_id])
+            self._conn.commit()
+            self.empty_cache(key="transactions")
+
+        return self.get_transactions()
 
     # -------------------- DELETE --------------------
 
-    def delete_holding(self, ticker_symbol: str) -> list[Holding]:
-        raise NotImplementedError
+    def delete_holding(self, holding: Holding) -> list[Holding]:
+        with self._conn.cursor() as cur:
+            cur.execute("DELETE FROM holdings WHERE ticker = %s",
+                        [holding.ticker])
+            self._conn.commit()
+            self.empty_cache(key="holdings")
 
-    def delete_transaction(self, trans_id: int) -> list[Transaction]:
-        raise NotImplementedError
+        return self.get_holdings()
+
+    def delete_transaction(self, transaction: Transaction) -> list[Transaction]:
+        with self._conn.cursor() as cur:
+            cur.execute("DELETE FROM transactions WHERE trans_id = %s",
+                        [transaction.trans_id])
+            self._conn.commit()
+            self.empty_cache(key="transactions")
+
+        return self.get_holdings()
