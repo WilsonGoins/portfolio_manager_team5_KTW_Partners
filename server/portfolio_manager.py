@@ -11,10 +11,6 @@ class PortfolioManager:
         self.db_manager = db_manager
         self.finance_manager = finance_manager
 
-        # start user with a cash value
-        self.db_manager.add_holding(
-            Holding("cash_value", "Cash", "Cash", cash_value))
-
     # Retrieves all data needed for overview page
     # Returns in a dict of form
         # {HoldingsTable: [{symbol: AAPL, ..., market_value: ..., change_since_close: ..., allocation_pct: 12.5}, {symbol: NVDA, ...}],
