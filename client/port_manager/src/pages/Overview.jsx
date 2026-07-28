@@ -1,8 +1,9 @@
-import { PortfolioValueCard } from "../components/overview/PortfolioValueCard"
-import { WatchListCard } from "../components/overview/WatchListCard"
-import { AllocationCard } from "../components/overview/AllocationCard.jsx"
-import { HoldingsCard } from "../components/overview/HoldingsCard.jsx"
-import "./Overview.css"
+import React, { useState, useEffect } from "react";
+import { PortfolioValueCard } from "../components/overview/PortfolioValueCard";
+import { WatchListCard } from "../components/overview/WatchListCard";
+import { AllocationCard } from "../components/overview/AllocationCard.jsx";
+import { HoldingsCard } from "../components/overview/HoldingsCard.jsx";
+import "./Overview.css";
 
 const portfolioValueData = {
   '1D': [
@@ -47,64 +48,69 @@ const watchlistData = [
   { symbol: 'JPM', price: 205.60, change: 0.48 },
 ];
 
-const allocationData = {
-  'Equity': 52.0,
-  'Fixed Income': 23.0,
-  'Cash': 10.0,
-  'Real Estate': 9.0,
-  'Crypto': 6.0,
-};
-
-const holdingsData = [
-  {
-    symbol: 'AAPL',
-    name: 'Apple Inc.',
-    h_type: 'Equity',
-    num_shares: 120,
-    curr_price: 198.45,
-    previous_close: 196.01,
-    market_value: 23814.00,
-    change_since_close: 292.80,
-    allocation_pct: 21.3
-  },
-  {
-    symbol: 'NVDA',
-    name: 'NVIDIA Corp.',
-    h_type: 'Equity',
-    num_shares: 200,
-    curr_price: 126.75,
-    previous_close: 122.88,
-    market_value: 25350.00,
-    change_since_close: 774.00,
-    allocation_pct: 22.7
-  },
-  {
-    symbol: 'cash_value',
-    name: 'Cash',
-    h_type: 'Cash',
-    num_shares: null, // Use null instead of string "--" for safer JS formatting
-    curr_price: null,
-    previous_close: null,
-    market_value: 10000.00,
-    change_since_close: null,
-    allocation_pct: 10.0
-  }
-];
-
 export function Overview() {
+  const [holdingsData, setHoldingsData] = useState([]);
+  const [allocationData, setAllocationData] = useState({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    async function fetchOverviewData() {
+      try {
+        setIsLoading(true);
+        const response = await fetch('/api/overview'); 
+        
+        if (!response.ok) {
+          throw new Error(`Server returned ${response.status}`);
+        }
+
+        const overviewData = await response.json();
+        
+        setHoldingsData(overviewData.HoldingsTable || []);
+        setAllocationData(overviewData.AllocationsDict || {});
+      } catch (err) {
+        console.error("Failed to fetch overview data:", err);
+        setError(err.message);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchOverviewData();
+  }, []);
+
   return (
     <div className="overview-page">
       <div className="overview-main-content">
         <div className="overview-column left-column">
           <PortfolioValueCard data={portfolioValueData} />
-          <HoldingsCard data={holdingsData} />
+          {isLoading ? (
+            <div className="card holdings-card">
+              <h3>Holdings</h3>
+              <p style={{ color: '#718096', padding: '16px' }}>Loading holdings...</p>
+            </div>
+          ) : error ? (
+            <div className="card holdings-card">
+              <h3>Holdings</h3>
+              <p style={{ color: '#e53e3e', padding: '16px' }}>Error loading data: {error}</p>
+            </div>
+          ) : (
+            <HoldingsCard data={holdingsData} />
+          )}
         </div>
 
         <div className="overview-column right-column">
           <WatchListCard data={watchlistData} />
-          <AllocationCard data={allocationData} />
+          {isLoading ? (
+            <div className="card allocation-card">
+              <h3>Allocation</h3>
+              <p style={{ color: '#718096', padding: '16px' }}>Loading allocation...</p>
+            </div>
+          ) : (
+            <AllocationCard data={allocationData} />
+          )}
         </div>
       </div>
     </div>
-  )
+  );
 }

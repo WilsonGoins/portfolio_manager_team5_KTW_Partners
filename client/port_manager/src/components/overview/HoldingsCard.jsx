@@ -14,7 +14,7 @@ export function HoldingsCard({ data }) {
     const val = params.value;
     if (val === null || val === undefined) return null;
     const isPositive = val >= 0;
-    const formatted = `${isPositive ? '+' : ''}${val.toFixed(2)}%`;
+    const formatted = `${isPositive ? '+' : ''}${Number(val).toFixed(2)}%`;
     return (
       <span className={isPositive ? 'positive' : 'negative'}>
         {formatted}
