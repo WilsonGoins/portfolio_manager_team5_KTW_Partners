@@ -1,0 +1,20 @@
+.overview-page {
+  padding: 24px;
+  background-color: #f8f9fa;
+  font-family: 'Public Sans', sans-serif;
+  min-height: 100vh;
+}
+
+.overview-main-content {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 24px;
+  margin-top: 24px;
+}
+
+.overview-column {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+

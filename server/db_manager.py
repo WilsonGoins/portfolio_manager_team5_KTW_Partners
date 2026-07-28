@@ -6,6 +6,9 @@ from psycopg.rows import dict_row
 from datetime import datetime
 
 
+_CASH_PK = "user"
+
+
 class DBManager():
     """Handles all db related needs"""
 
@@ -37,6 +40,29 @@ class DBManager():
             self._cache.pop(key)
             self._enable_cache and self.logger.debug(
                 f"Cache[DELETE] Cleared cache for key: {key}")
+
+    # -------------------- CASH --------------------
+
+    def get_cash(self) -> float | None:
+        with self._conn.cursor() as cur:
+            cur.execute("SELECT value FROM cash WHERE uid = %s", [_CASH_PK])
+            cash_row = cur.fetchone()
+            cash_value: float = float(
+                cash_row["value"]) if cash_row is not None else None
+
+            return cash_value
+
+    def set_cash(self, new_value: float) -> float:
+        sql_str = """
+            INSERT INTO cash (uid, value)
+            VALUES (%s, %s)
+            ON CONFLICT (uid)
+            DO UPDATE SET value = EXCLUDED.value;
+        """
+        with self._conn.cursor() as cur:
+            cur.execute(sql_str, [_CASH_PK, new_value])
+            self._conn.commit()
+        return new_value
 
     # -------------------- READ --------------------
 
