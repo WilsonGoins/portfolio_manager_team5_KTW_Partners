@@ -11,7 +11,9 @@ class PortfolioManager:
         self.db_manager = db_manager
         self.finance_manager = finance_manager
 
-        self.db_manager.add_holding(Holding("cash_value", "Cash", "Cash", cash_value))       # start user with a cash value
+        # only seed cash on first setup, otherwise we'd wipe/duplicate the existing balance on every restart
+        if self.db_manager.get_holding("cash_value") is None:
+            self.db_manager.add_holding(Holding("cash_value", "Cash", "Cash", cash_value))       # start user with a cash value
 
 
     # Retrieves all data needed for overview page
@@ -133,7 +135,7 @@ class PortfolioManager:
     # the dollar change since yesterday's close, and each holding's % allocation of the portfolio.
     # Cash is included as its own holding (h_type "Cash") whose market value is the portfolio's
     # cash balance; fields that don't apply to cash (symbol, num_shares, curr_price, last_close,
-    # change_since_close) are set to "na". Cash is part of the total used for % allocation.
+    # change_since_close) are set to "--". Cash is part of the total used for % allocation.
     def CalculateHoldingInfo(self, holdings):
         enriched = []
         cashAmount = self.GetCashAmount()   # gets the cash amount we currently have

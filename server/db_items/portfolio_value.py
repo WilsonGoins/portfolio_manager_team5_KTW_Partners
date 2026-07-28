@@ -13,8 +13,8 @@ class PortfolioValue(ADataBaseItem):
         return cls(p_date=class_as_dict["p_date"],
                    value=class_as_dict["value"])
 
-        def to_dict(self) -> dict:
-            return {
-                "p_date": self.p_date,
-                "value": self.value
-            }
+    def to_dict(self) -> dict:
+        return {
+            "p_date": self.p_date,
+            "value": self.value
+        }
