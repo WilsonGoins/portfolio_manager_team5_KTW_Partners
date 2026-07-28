@@ -47,22 +47,49 @@ const watchlistData = [
   { symbol: 'JPM', price: 205.60, change: 0.48 },
 ];
 
-const allocationData = [
-  { name: 'Equities', value: 52 },
-  { name: 'Fixed Income', value: 23 },
-  { name: 'Cash', value: 10 },
-  { name: 'Real Estate', value: 9 },
-  { name: 'Crypto', value: 6 },
-];
+const allocationData = {
+  'Equity': 52.0,
+  'Fixed Income': 23.0,
+  'Cash': 10.0,
+  'Real Estate': 9.0,
+  'Crypto': 6.0,
+};
 
 const holdingsData = [
-    { symbol: 'AAPL', name: 'Apple Inc.', shares: 120, avgCost: 165.20, price: 198.45, mktValue: 23814.00, change: 1.24, alloc: 21.3 },
-    { symbol: 'MSFT', name: 'Microsoft Corp.', shares: 60, avgCost: 310.10, price: 421.30, mktValue: 25278.00, change: 0.68, alloc: 22.6 },
-    { symbol: 'NVDA', name: 'NVIDIA Corp.', shares: 200, avgCost: 88.40, price: 126.75, mktValue: 25350.00, change: 3.15, alloc: 22.7 },
-    { symbol: 'AMZN', name: 'Amazon.com Inc.', shares: 90, avgCost: 145.60, price: 178.20, mktValue: 16038.00, change: -0.42, alloc: 14.4 },
-    { symbol: 'GOOGL', name: 'Alphabet Inc.', shares: 75, avgCost: 132.90, price: 165.10, mktValue: 12382.50, change: 0.91, alloc: 11.1 },
-    { symbol: 'TSLA', name: 'Tesla Inc.', shares: 40, avgCost: 245.00, price: 219.35, mktValue: 8774.00, change: -1.87, alloc: 7.9 },
-]
+  {
+    symbol: 'AAPL',
+    name: 'Apple Inc.',
+    h_type: 'Equity',
+    num_shares: 120,
+    curr_price: 198.45,
+    previous_close: 196.01,
+    market_value: 23814.00,
+    change_since_close: 292.80,
+    allocation_pct: 21.3
+  },
+  {
+    symbol: 'NVDA',
+    name: 'NVIDIA Corp.',
+    h_type: 'Equity',
+    num_shares: 200,
+    curr_price: 126.75,
+    previous_close: 122.88,
+    market_value: 25350.00,
+    change_since_close: 774.00,
+    allocation_pct: 22.7
+  },
+  {
+    symbol: 'cash_value',
+    name: 'Cash',
+    h_type: 'Cash',
+    num_shares: null, // Use null instead of string "--" for safer JS formatting
+    curr_price: null,
+    previous_close: null,
+    market_value: 10000.00,
+    change_since_close: null,
+    allocation_pct: 10.0
+  }
+];
 
 export function Overview() {
   return (
