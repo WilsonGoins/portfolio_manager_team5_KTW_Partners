@@ -1,0 +1,43 @@
+.portfolio-value-card .card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.portfolio-value-main {
+  font-size: 2.25rem;
+  font-weight: 700;
+  color: #1a202c;
+  margin-top: -8px;
+}
+
+.portfolio-value-change {
+  font-size: 0.875rem;
+  background-color: #ecfdf5;
+  padding: 4px 8px;
+  border-radius: 6px;
+  display: inline-block;
+  margin-top: 8px;
+}
+
+.timeframe-selector {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.timeframe-selector button {
+  background: none;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  color: #718096;
+  font-size: 0.75rem;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.timeframe-selector button.active {
+  background-color: #008080;
+  border-color: #008080;
+  color: #ffffff;
+}

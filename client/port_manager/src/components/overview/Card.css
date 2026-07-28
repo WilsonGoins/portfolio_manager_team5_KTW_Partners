@@ -1,0 +1,21 @@
+.card {
+  background-color: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.05);
+  padding: 24px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.card h3 {
+  font-size: 1.125rem;
+  color: #1a202c;
+  margin-top: 0;
+  margin-bottom: 24px;
+  font-weight: 600;
+}
+
+.positive { color: #10b981; }
+.negative { color: #ef4444; }
