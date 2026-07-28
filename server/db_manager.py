@@ -37,7 +37,7 @@ class DBManager():
             self._enable_cache and self.logger.debug(
                 "Cache[DELETE] Cleared all keys.")
         else:
-            self._cache.pop(key)
+            self._cache.pop(key, None)
             self._enable_cache and self.logger.debug(
                 f"Cache[DELETE] Cleared cache for key: {key}")
 
