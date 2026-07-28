@@ -182,8 +182,7 @@ class PortfolioManager:
 
         for holding in holdings:
             h_type = holding["h_type"]
-            market_value = holding.get(
-                "market_value", holding["num_shares"] * holding["curr_price"])
+            market_value = holding["market_value"]
 
             value_by_type[h_type] = value_by_type.get(h_type, 0) + market_value
             total_value += market_value
