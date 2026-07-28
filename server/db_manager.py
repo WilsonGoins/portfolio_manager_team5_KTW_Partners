@@ -37,7 +37,7 @@ class DBManager():
             self._enable_cache and self.logger.debug(
                 "Cache[DELETE] Cleared all keys.")
         else:
-            self._cache.pop(key)
+            self._cache.pop(key, None)
             self._enable_cache and self.logger.debug(
                 f"Cache[DELETE] Cleared cache for key: {key}")
 
@@ -226,7 +226,7 @@ class DBManager():
 
     # -------------------- UPDATE --------------------
 
-    def update_holding(self, holding: Holding) -> Holding:
+    def update_holding(self, holding: Holding) -> list[Holding]:
         with self._conn.cursor() as cur:
             cur.execute("UPDATE holdings SET name=%s, h_type=%s, quantity_shares=%s WHERE ticker=%s",
                         [holding.name, holding.h_type, holding.quantity_shares, holding.ticker])
@@ -235,10 +235,10 @@ class DBManager():
 
         return self.get_holdings()
 
-    def update_transaction(self, transaction: Transaction) -> Transaction:
+    def update_transaction(self, transaction: Transaction) -> list[Transaction]:
         with self._conn.cursor() as cur:
             cur.execute("UPDATE transactions SET ticker=%s, quantity=%s, price=%s, trans_date=%s, action_taken=%s  WHERE trans_id=%s",
-                        [transaction.ticker, transaction.quantity, transaction.price, transaction.date, transaction.action_taken, transaction.trans_id])
+                        [transaction.ticker, transaction.quantity, transaction.price, transaction.trans_date, transaction.action_taken, transaction.trans_id])
             self._conn.commit()
             self.empty_cache(key="transactions")
 
@@ -262,4 +262,4 @@ class DBManager():
             self._conn.commit()
             self.empty_cache(key="transactions")
 
-        return self.get_holdings()
+        return self.get_transactions()
