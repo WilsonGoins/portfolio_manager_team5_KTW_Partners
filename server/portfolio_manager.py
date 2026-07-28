@@ -11,7 +11,7 @@ class PortfolioManager:
         self.db_manager = db_manager
         self.finance_manager = finance_manager
 
-        self.db_manager.add_holding(Holding("cash_value", "Cash", "Cash", 10000))       # start user with $10,000
+        self.db_manager.add_holding(Holding("cash_value", "Cash", "Cash", cash_value))       # start user with a cash value
 
 
     # Retrieves all data needed for overview page
@@ -23,7 +23,6 @@ class PortfolioManager:
         finalRes = {}
         # first we get the data on holdings and structure it for the holdings table
         dbHoldingsRes = self.db_manager.get_holdings()      # this is a list of Holding objects, each with {ticker, name, h_type, quantity_shares, ...}
-        cashAmount = GetCashAmount()
     
         holdingsWithPrice = []
         for holding in dbHoldingsRes:      # this will iterate through the list we got and add current price for each of them
@@ -36,11 +35,11 @@ class PortfolioManager:
                 "num_shares": holding.quantity_shares, "curr_price": yahooRes["current_price"], "previous_close": yahooRes["previous_close"]})
 
         # now clean up the data to have all the necessary information (cash is folded in as its own holding)
-        enrichedHoldings = CalculateHoldingInfo(holdingsWithPrice, cashAmount)
+        enrichedHoldings = self.CalculateHoldingInfo(holdingsWithPrice)
         finalRes["HoldingsTable"] = enrichedHoldings
 
         # now get the allocations for the allocations graph
-        allocationsDict = CalculateAllocationByType(enrichedHoldings)       # cash is passed in as a holding here
+        allocationsDict = self.CalculateAllocationByType(enrichedHoldings)       # cash is passed in as a holding here
         finalRes["AllocationsDict"] = allocationsDict
 
         return finalRes
@@ -70,7 +69,7 @@ class PortfolioManager:
             raise ValueError("quantity must be a positive number of shares")
 
         total_cost = quantity * price
-        cash = GetCashAmount()
+        cash = self.GetCashAmount()
         if total_cost > cash:
             raise ValueError("insufficient cash to complete this purchase")
 
@@ -89,9 +88,8 @@ class PortfolioManager:
         self.db_manager.update_holding(Holding("cash_value", "Cash", "Cash", (cash - total_cost)))
 
         # record the buy in the transactions ledger
-        self.db_manager.add_transaction(Transaction(ticker, quantity, price, datetime.now(), "buy"))
+        self.db_manager.add_transaction(Transaction(None, ticker, quantity, price, datetime.now(), "buy"))       # TODO: passing in None for now (bc trans_id is still required)
 
-        return self.cash
 
     # Sell shares of a security.
     # Adds the proceeds to cash, reduces (or closes) the holding, and records the transaction.
@@ -103,12 +101,12 @@ class PortfolioManager:
         if existing is None or existing.quantity_shares < quantity:
             raise ValueError("cannot sell more shares than are currently held")
 
-        cash = GetCashAmount()
+        cash = self.GetCashAmount()
 
         sellAmount = quantity * price
 
         # TODO: this updates the user's cash holding, need to confirm that this is how we want this done
-        self.db_manager.update_holding(Holding("cash_value", "Cash", "Cash", (cash + total_cost)))
+        self.db_manager.update_holding(Holding("cash_value", "Cash", "Cash", (cash + sellAmount)))
 
         existing.quantity_shares -= quantity
         if existing.quantity_shares == 0:
@@ -117,80 +115,85 @@ class PortfolioManager:
             self.db_manager.update_holding(existing)
 
         # record the sell in the transactions ledger
-        self.db_manager.add_transaction(Transaction(ticker, quantity, price, datetime.now(), "sell"))
+        self.db_manager.add_transaction(Transaction(None, ticker, quantity, price, datetime.now(), "sell"))     # TODO: passing in None for now (bc trans_id is still required)
 
-        return self.cash
-
+    
+    # Gets the current amount of cash for the user
+    # Returns the amount of cash, not the cash holding
     def GetCashAmount(self):
-        # TODO: this is an issue, we can't store a price in the holdings table and we cant store a quantity because it might be a float. need to discuss   
-        return (self.db_manager.get_holding("cash_value"))[quantity]          # this gets how much cash we currently have
+        # TODO: this is an issue, we can't store a price in the holdings table and we cant store a quantity because it might be a float. need to discuss  
+        dbRes =  self.db_manager.get_holding("cash_value")
+        if (dbRes):
+            return dbRes.quantity_shares
+        else:
+            return 0
 
 
+    # Returns a list of holdings dicts with all the same fields, plus the market value,
+    # the dollar change since yesterday's close, and each holding's % allocation of the portfolio.
+    # Cash is included as its own holding (h_type "Cash") whose market value is the portfolio's
+    # cash balance; fields that don't apply to cash (symbol, num_shares, curr_price, last_close,
+    # change_since_close) are set to "na". Cash is part of the total used for % allocation.
+    def CalculateHoldingInfo(self, holdings):
+        enriched = []
+        cashAmount = self.GetCashAmount()   # gets the cash amount we currently have
+        total_value = cashAmount
 
+        for holding in holdings:
+            num_shares = holding["num_shares"]
+            curr_price = holding["curr_price"]
+            previous_close = holding["previous_close"]
 
-# Returns a list of holdings dicts with all the same fields, plus the market value,
-# the dollar change since yesterday's close, and each holding's % allocation of the portfolio.
-# Cash is included as its own holding (h_type "cash") whose market value is the portfolio's
-# cash balance; fields that don't apply to cash (symbol, num_shares, curr_price, last_close,
-# change_since_close) are set to "na". Cash is part of the total used for % allocation.
-def CalculateHoldingInfo(holdings, cash):
-    enriched = []
-    total_value = 0
-    for holding in holdings:
-        num_shares = holding["num_shares"]
-        curr_price = holding["curr_price"]
-        previous_close = holding["previous_close"]
+            market_value = num_shares * curr_price
+            change_since_close = num_shares * (curr_price - previous_close)
+            total_value += market_value
 
-        market_value = num_shares * curr_price
-        change_since_close = num_shares * (curr_price - previous_close)
-        total_value += market_value
+            enriched.append({
+                "symbol": holding["symbol"],
+                "name": holding["name"],
+                "h_type": holding["h_type"],
+                "num_shares": num_shares,
+                "curr_price": curr_price,
+                "previous_close": previous_close,
+                "market_value": market_value,
+                "change_since_close": change_since_close,
+            })
 
+        # add cash as a holding, with "--" for the fields that don't apply to it
         enriched.append({
-            "symbol": holding["symbol"],
-            "name": holding["name"],
-            "h_type": holding["h_type"],
-            "num_shares": num_shares,
-            "curr_price": curr_price,
-            "previous_close": previous_close,
-            "market_value": market_value,
-            "change_since_close": change_since_close,
+            "symbol": "cash_value",
+            "name": "Cash",
+            "h_type": "Cash",
+            "num_shares": "--",              
+            "curr_price": "--",
+            "previous_close": "--",
+            "market_value": cashAmount,        # TODO: we probably want to display the cash amount in the 'market_value' field, so even though we may internally represent it as num_shares, is this good?
+            "change_since_close": "--",
         })
 
-    # represent cash as a holding, with "na" for the fields that don't apply to it
-    enriched.append({
-        "symbol": "cash_value"
-        "name": "Cash",
-        "h_type": "Cash",
-        "num_shares": cash,
-        "curr_price": "--",
-        "previous_close": "--",
-        "market_value": cash,
-        "change_since_close": "--",
-    })
+        # second pass: now that we know the portfolio total (holdings + cash), set each holding's % allocation
+        for holding in enriched:
+            holding["allocation_pct"] = (holding["market_value"] / total_value * 100) if total_value else 0
 
-    # second pass: now that we know the portfolio total (holdings + cash), set each holding's % allocation
-    for holding in enriched:
-        holding["allocation_pct"] = (holding["market_value"] / total_value * 100) if total_value else 0
-
-    return enriched
+        return enriched
 
 
-# Aggregates market value of holdings by type (cash is included as the "cash" type,
-# since CalculateHoldingInfo adds it as a holding)
-# Returns a dict of {h_type: percentage_of_portfolio}
-def CalculateAllocationByType(holdings):
-    value_by_type = {}
-    total_value = 0
+    # Aggregates market value of holdings by type (cash is included as the "cash" type,
+    # since CalculateHoldingInfo adds it as a holding)
+    # Returns a dict of {h_type: percentage_of_portfolio}
+    def CalculateAllocationByType(self, holdings):
+        value_by_type = {}
+        total_value = 0
 
-    for holding in holdings:
-        h_type = holding["h_type"]
-        market_value = holding.get("market_value", holding["num_shares"] * holding["curr_price"])
+        for holding in holdings:
+            h_type = holding["h_type"]
+            market_value = holding.get("market_value", holding["num_shares"] * holding["curr_price"])
 
-        value_by_type[h_type] = value_by_type.get(h_type, 0) + market_value
-        total_value += market_value
+            value_by_type[h_type] = value_by_type.get(h_type, 0) + market_value
+            total_value += market_value
 
-    allocation = {}
-    for h_type, value in value_by_type.items():
-        allocation[h_type] = (value / total_value * 100) if total_value else 0
+        allocation = {}
+        for h_type, value in value_by_type.items():
+            allocation[h_type] = (value / total_value * 100) if total_value else 0
 
-    return allocation
+        return allocation

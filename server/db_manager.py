@@ -133,6 +133,7 @@ class DBManager():
             return holdings
 
     def get_transaction(self, trans_id: int) -> Transaction | None:
+        # TODO: delete this? how would we even query b the transaction id? they are set by the db and random
         if self._enable_cache and f"transaction:{trans_id}" in self._cache:
             self.logger.debug(f"Cache[HIT] \"transaction:{trans_id}\": {
                               self._cache[trans_id]}")
