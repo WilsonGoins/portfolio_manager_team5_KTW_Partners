@@ -1,8 +1,26 @@
 .explore-page {
-  
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px;
+  box-sizing: border-box;
 }
 
 .explore-main-content {
-  display: flex;
-  justify-content: space-between
+  display: grid;
+  grid-template-columns: 7fr 3fr; 
+  gap: 32px;
+  align-items: start;
 }
+
+.explore-main-content > *:first-child {
+  width: 100%;
+  min-width: 0;
+}
+
+.explore-main-content > *:last-child {
+  width: 100%;
+  position: sticky;
+  top: 24px;
+}
+

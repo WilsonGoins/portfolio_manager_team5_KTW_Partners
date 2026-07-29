@@ -1,32 +1,49 @@
-.security-card {
+.securities-grid {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  gap: 20px;
+  width: 100%;
+  margin-top: 24px;
+}
+
+.security-card {
+  width: 100%;
+  box-sizing: border-box;
   background-color: #ffffff;
   border: 1px solid #e2e8f0;
-
-  padding: 20px;
+  border-radius: 12px;
+  padding: 20px 24px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   font-family: system-ui, -apple-system, sans-serif;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  transition: all 0.2s ease;
   cursor: pointer;
 }
 
 .security-card:hover {
-  transform: translateY(-2px);
   border-color: #cbd5e1;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
-/* Header & Meta */
-.security-card-header {
+.security-card.expanded {
+  border-color: #2563eb;
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.12);
+}
+
+/* Header & Pricing */
+.card-top-row {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
+}
+
+.security-title-group {
+  display: flex;
   align-items: center;
+  gap: 10px;
 }
 
 .security-symbol {
-  font-size: 1.25rem;
+  font-size: 1.4rem;
   font-weight: 700;
   color: #0f172a;
 }
@@ -41,42 +58,40 @@
 }
 
 .security-name {
-  margin-top: 4px;
+  margin-top: 2px;
   font-size: 0.875rem;
   color: #64748b;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-/* Pricing Section */
-.security-card-body {
-  margin-top: 24px;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
+.price-group {
+  text-align: right;
 }
 
 .price-label {
-  display: block;
   font-size: 0.75rem;
   color: #94a3b8;
   font-weight: 500;
 }
 
+.price-and-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 2px;
+}
+
 .price-value {
-  font-size: 1.5rem;
+  font-size: 1.4rem;
   font-weight: 700;
   color: #0f172a;
 }
 
-/* Dynamic State Badges */
 .change-badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 10px;
-  border-radius: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
   font-size: 0.75rem;
   font-weight: 600;
 }
@@ -91,3 +106,143 @@
   color: #dc2626;
 }
 
+/* Chart */
+.graph-section {
+  margin-top: 16px;
+}
+
+.graph-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.section-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.timeframe-selector {
+  display: flex;
+  gap: 4px;
+  background-color: #f1f5f9;
+  padding: 2px;
+  border-radius: 6px;
+}
+
+.timeframe-btn {
+  background: none;
+  border: none;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #64748b;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.timeframe-btn.active {
+  background-color: #ffffff;
+  color: #2563eb;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.chart-wrapper {
+  width: 100%;
+  background-color: #f8fafc;
+  border-radius: 8px;
+  padding: 8px 0 0 0;
+}
+
+/* 4-Column Metrics */
+.metrics-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.metric-item {
+  display: flex;
+  flex-direction: column;
+  background-color: #f8fafc;
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+
+.metric-label {
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+.metric-value {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin-top: 2px;
+}
+
+/* Expand Prompt */
+.expand-prompt {
+  margin-top: 12px;
+  text-align: center;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.security-card:hover .expand-prompt {
+  color: #2563eb;
+}
+
+/* Buy Action Box */
+.divider {
+  height: 1px;
+  background-color: #e2e8f0;
+  margin: 12px 0;
+}
+
+.buy-panel {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  background-color: #f1f5f9;
+  padding: 12px;
+  border-radius: 8px;
+}
+
+.buy-input-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.buy-quantity-input {
+  width: 60px;
+  padding: 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.buy-button {
+  background-color: #2563eb;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.buy-button:hover {
+  background-color: #1d4ed8;
+}
