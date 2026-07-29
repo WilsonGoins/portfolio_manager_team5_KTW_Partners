@@ -194,7 +194,7 @@ export function SecurityCard({ data }) {
               ) : (
                 <>
                   <p>Owned Shares: {currentShares}</p>
-                  <p>Market Value: ${currentMarketValue}</p>
+                  <p>Market Value: ${currentMarketValue ? Number(currentMarketValue).toFixed(2) : 0.00}</p>
                   <p>Allocation: {currentAlloc}%</p>
                 </>
               )}
