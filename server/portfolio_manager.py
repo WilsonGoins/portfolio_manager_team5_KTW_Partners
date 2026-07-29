@@ -39,7 +39,61 @@ class PortfolioManager:
         allocationsDict = self.CalculateAllocationByType(enrichedHoldings)       # cash is passed in as a holding here
         finalRes["AllocationsDict"] = allocationsDict
 
+        # headline numbers for the portfolio value card
+        summary = self.CalculatePortfolioSummary(enrichedHoldings)
+        finalRes["PortfolioSummary"] = summary
+
+        # the value chart's series: stored snapshots, capped with today's live
+        # total so the line stays current between snapshot writes
+        finalRes["PortfolioHistory"] = self.GetPortfolioHistory(
+            todaysValue=summary["total_value"])
+
         return finalRes
+
+    # Returns the stored portfolio value snapshots oldest first, as
+    # [{"date": "YYYY-MM-DD", "value": float}]. When todaysValue is given it is
+    # appended as (or overwrites) today's point, so the series ends at the
+    # portfolio's live value rather than at the last snapshot that was written.
+
+    def GetPortfolioHistory(self, todaysValue: float = None):
+        dbRes = self.db_manager.get_portfolio_values()
+
+        history = []
+        for pv in sorted(dbRes, key=lambda pv: pv.p_date):
+            history.append({
+                "date": pv.p_date.strftime("%Y-%m-%d"),
+                "value": float(pv.value),      # Decimal isn't JSON serializable
+            })
+
+        if todaysValue is not None:
+            today = datetime.now().strftime("%Y-%m-%d")
+            if history and history[-1]["date"] == today:
+                history[-1]["value"] = todaysValue
+            else:
+                history.append({"date": today, "value": todaysValue})
+
+        return history
+
+    # Totals up the enriched holdings (cash included) into the headline numbers
+    # for the portfolio value card: what the portfolio is worth right now, and
+    # how much of that is today's movement in dollars and percent.
+
+    def CalculatePortfolioSummary(self, holdings):
+        total_value = sum(holding["market_value"] for holding in holdings)
+
+        # cash carries "--" for change_since_close, so only total the real numbers
+        day_change = sum(holding["change_since_close"] for holding in holdings
+                         if isinstance(holding["change_since_close"], (int, float)))
+
+        previous_value = total_value - day_change
+        day_change_pct = (day_change / previous_value *
+                          100) if previous_value else 0
+
+        return {
+            "total_value": total_value,
+            "day_change": day_change,
+            "day_change_pct": day_change_pct,
+        }
 
     # Retrieves all transactions from database
     # returns a list of transaction dicts with the date, ticker, quantity,
