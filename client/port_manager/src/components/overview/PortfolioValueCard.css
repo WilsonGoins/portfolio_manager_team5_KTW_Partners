@@ -42,10 +42,13 @@
   font-size: 0.875rem;
 }
 
+/* Sits below the headline figures and left-aligned, rather than in the card's
+   top-right corner where it crowded the card in the next column. */
 .timeframe-selector {
   display: flex;
+  justify-content: flex-start;
   gap: 8px;
-  margin-top: 4px;
+  margin-top: 16px;
 }
 
 .timeframe-selector button {

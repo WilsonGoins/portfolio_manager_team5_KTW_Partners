@@ -115,21 +115,21 @@ export function PortfolioValueCard({ data, summary }) {
             {todayChange}
           </span>
         </div>
+      </div>
 
-        <div className="timeframe-selector">
-          {TIMEFRAMES.map((tf) => (
-            <button
-              key={tf}
-              className={activeTimeframe === tf ? 'active' : ''}
-              onClick={() => setActiveTimeframe(tf)}>
-              {tf}
-            </button>
-          ))}
-        </div>
+      <div className="timeframe-selector">
+        {TIMEFRAMES.map((tf) => (
+          <button
+            key={tf}
+            className={activeTimeframe === tf ? 'active' : ''}
+            onClick={() => setActiveTimeframe(tf)}>
+            {tf}
+          </button>
+        ))}
       </div>
 
       {/* height covers the plot plus the x-axis band, so ticks aren't clipped */}
-      <div className="chart-container" style={{ height: '280px', marginTop: '24px' }}>
+      <div className="chart-container" style={{ height: '200px', marginTop: '12px' }}>
         {currentChartData.length < 2 ? (
           <p className="chart-empty-message">
             Not enough history to chart {activeTimeframe}.

@@ -62,7 +62,7 @@ export function HoldingsCard({ data }) {
       flex: 1.2,
     },
     {
-      field: 'change_since_close',
+      field: 'change_pct_since_close',
       headerName: 'Day Change',
       type: 'numericColumn',
       cellRenderer: ChangeCellRenderer,

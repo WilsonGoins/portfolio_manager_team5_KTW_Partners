@@ -79,10 +79,15 @@ You need **two terminals**
 ```bash
 source venv/bin/activate     # Windows: .\venv\Scripts\Activate.ps1
 cd server
-flask --app api run
+flask --app api --debug run
 ```
 
-Serves on http://127.0.0.1:5000. Add `--debug` for auto-reload on file changes.
+Serves on http://127.0.0.1:5000.
+
+Use `--debug`. Without it the backend does **not** reload when you edit files, and
+because the frontend *does* hot-reload you get a confusing split where the UI is
+running new code against an old API — new fields come back `undefined` and render
+as `--` or blank. Drop the flag only when you want the server to ignore edits.
 
 ### Terminal 2 — frontend
 

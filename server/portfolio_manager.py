@@ -205,11 +205,13 @@ class PortfolioManager:
         else:
             return 0
 
-    # Returns a list of holdings dicts with all the same fields, plus the market value,
-    # the dollar change since yesterday's close, and each holding's % allocation of the portfolio.
+    # Returns a list of holdings dicts with all the same fields, plus the market value, the
+    # change since yesterday's close as both dollars (change_since_close) and a percent
+    # (change_pct_since_close), and each holding's % allocation of the portfolio.
     # Cash is included as its own holding (h_type "Cash") whose market value is the portfolio's
     # cash balance; fields that don't apply to cash (symbol, num_shares, curr_price, last_close,
-    # change_since_close) are set to "--". Cash is part of the total used for % allocation.
+    # change_since_close, change_pct_since_close) are set to "--". Cash is part of the total
+    # used for % allocation.
     def CalculateHoldingInfo(self, holdings):
         enriched = []
         cashAmount = self.GetCashAmount()   # gets the cash amount we currently have
@@ -222,6 +224,8 @@ class PortfolioManager:
 
             market_value = num_shares * curr_price
             change_since_close = num_shares * (curr_price - previous_close)
+            change_pct_since_close = ((curr_price - previous_close) /
+                                      previous_close * 100) if previous_close else 0
             total_value += market_value
 
             enriched.append({
@@ -233,6 +237,7 @@ class PortfolioManager:
                 "previous_close": previous_close,
                 "market_value": market_value,
                 "change_since_close": change_since_close,
+                "change_pct_since_close": change_pct_since_close,
             })
 
         # add cash as a holding, with "--" for the fields that don't apply to it.
@@ -246,6 +251,7 @@ class PortfolioManager:
             "previous_close": "--",
             "market_value": cashAmount,
             "change_since_close": "--",
+            "change_pct_since_close": "--",
         })
 
         # second pass: now that we know the portfolio total (holdings + cash), set each holding's % allocation
