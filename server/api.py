@@ -27,7 +27,6 @@ def hello_world():
 
 @app.route("/api/overview")
 def overview():
-    """Returns HoldingsTable + AllocationsDict for the Overview page (chart + table + pie chart)."""
     try:
         return jsonify(portfolio_manager.GetOverviewData())
     except Exception as e:
@@ -37,7 +36,6 @@ def overview():
 
 @app.route("/api/transactions")
 def transactions():
-    """Returns the full transaction history for the Transactions page."""
     try:
         return jsonify(portfolio_manager.GetTransactions())
     except Exception as e:
@@ -47,12 +45,36 @@ def transactions():
 
 @app.route("/api/cash")
 def cash():
-    """Returns the user's current cash balance."""
     try:
         return jsonify({"cash": portfolio_manager.GetCashAmount()})
     except Exception as e:
         app.logger.error(f"Failed to get cash amount: {e}", exc_info=True)
         return jsonify({"error": "Failed to fetch cash amount"}), 500
+
+
+@app.route("/api/watchlist")
+def watchlist():
+    """Top 5 movers, reshaped to match WatchListCard's expected {symbol, price, change} shape."""
+    try:
+        movers = finance_manager.get_top_movers(count=5)
+        watchlist_data = []
+        for m in movers:
+            price = m.get("current_price")
+            prev_close = m.get("previous_close")
+            change_pct = (
+                ((price - prev_close) / prev_close) * 100
+                if price is not None and prev_close
+                else 0
+            )
+            watchlist_data.append({
+                "symbol": m.get("ticker"),
+                "price": price,
+                "change": round(change_pct, 2),
+            })
+        return jsonify(watchlist_data)
+    except Exception as e:
+        app.logger.error(f"Failed to get watchlist data: {e}", exc_info=True)
+        return jsonify({"error": "Failed to fetch watchlist data"}), 500
 
 
 @app.route("/api/buy", methods=["POST"])
