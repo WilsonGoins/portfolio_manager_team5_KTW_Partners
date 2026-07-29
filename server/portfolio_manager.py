@@ -7,7 +7,7 @@ from db_items import Holding, Transaction
 class PortfolioManager:
     """This class is responsible for handling all portfolio related queries. It delegates to DBManager and FinanceManager as needed"""
 
-    def __init__(self, db_manager: DBManager, finance_manager: FinanceManager, cash_value: float):
+    def __init__(self, db_manager: DBManager, finance_manager: FinanceManager):
         self.db_manager = db_manager
         self.finance_manager = finance_manager
 
@@ -25,8 +25,6 @@ class PortfolioManager:
 
         holdingsWithPrice = []
         for holding in dbHoldingsRes:      # this will iterate through the list we got and add current price for each of them
-            if (holding.ticker == "cash_value"):
-                continue
             yahooRes = self.finance_manager.get_stock_by_ticker(holding.ticker)
             if (yahooRes is None):
                 raise ValueError("Holding must be a valid security.")
@@ -38,8 +36,7 @@ class PortfolioManager:
         finalRes["HoldingsTable"] = enrichedHoldings
 
         # now get the allocations for the allocations graph
-        allocationsDict = self.CalculateAllocationByType(
-            enrichedHoldings)       # cash is passed in as a holding here
+        allocationsDict = self.CalculateAllocationByType(enrichedHoldings)       # cash is passed in as a holding here
         finalRes["AllocationsDict"] = allocationsDict
 
         return finalRes
@@ -52,7 +49,6 @@ class PortfolioManager:
         finalRes = []
         dbTransRes = self.db_manager.get_transactions()
         for trans in dbTransRes:
-            # format data...
             finalRes.append({
                 "date": trans.trans_date,
                 "ticker": trans.ticker,
@@ -86,14 +82,10 @@ class PortfolioManager:
             existing.quantity_shares += quantity
             self.db_manager.update_holding(existing)
 
-        # TODO: this updates the user's cash holding, need to confirm that this is how we want this done
-        self.db_manager.update_holding(
-            Holding("cash_value", "Cash", "Cash", (cash - total_cost)))
+        self.db_manager.set_cash((cash - total_cost))       # set cash to new amount after purchase
 
         # record the buy in the transactions ledger
-        self.db_manager.add_transaction(Transaction(None, ticker, quantity, price, datetime.now(
-            # TODO: passing in None for now (bc trans_id is still required)
-        ), "buy"))
+        self.db_manager.add_transaction(Transaction(None, ticker, quantity, price, datetime.now(), "buy"))
 
     # Sell shares of a security.
     # Adds the proceeds to cash, reduces (or closes) the holding, and records the transaction.
@@ -106,13 +98,11 @@ class PortfolioManager:
         if existing is None or existing.quantity_shares < quantity:
             raise ValueError("cannot sell more shares than are currently held")
 
-        cash = self.GetCashAmount()
+        cash = self.GetCashAmount()         # get current amount of cash
 
-        sellAmount = quantity * price
+        sellAmount = quantity * price       # get amount of money we make from sale
 
-        # TODO: this updates the user's cash holding, need to confirm that this is how we want this done
-        self.db_manager.update_holding(
-            Holding("cash_value", "Cash", "Cash", (cash + sellAmount)))
+        self.db_manager.set_cash((cash + sellAmount))       # add that to current cash
 
         existing.quantity_shares -= quantity
         if existing.quantity_shares == 0:
@@ -121,9 +111,7 @@ class PortfolioManager:
             self.db_manager.update_holding(existing)
 
         # record the sell in the transactions ledger
-        self.db_manager.add_transaction(Transaction(None, ticker, quantity, price, datetime.now(
-            # TODO: passing in None for now (bc trans_id is still required)
-        ), "sell"))
+        self.db_manager.add_transaction(Transaction(None, ticker, quantity, price, datetime.now(), "sell"))
 
     # Gets the current amount of cash for the user
     # Returns the amount of cash, not the cash holding
@@ -139,8 +127,7 @@ class PortfolioManager:
     # the dollar change since yesterday's close, and each holding's % allocation of the portfolio.
     # Cash is included as its own holding (h_type "Cash") whose market value is the portfolio's
     # cash balance; fields that don't apply to cash (symbol, num_shares, curr_price, last_close,
-    # change_since_close) are set to "na". Cash is part of the total used for % allocation.
-
+    # change_since_close) are set to "--". Cash is part of the total used for % allocation.
     def CalculateHoldingInfo(self, holdings):
         enriched = []
         cashAmount = self.GetCashAmount()   # gets the cash amount we currently have
@@ -168,13 +155,12 @@ class PortfolioManager:
 
         # add cash as a holding, with "--" for the fields that don't apply to it
         enriched.append({
-            "symbol": "cash_value",
+            "symbol": "--",
             "name": "Cash",
             "h_type": "Cash",
             "num_shares": "--",
             "curr_price": "--",
             "previous_close": "--",
-            # TODO: we probably want to display the cash amount in the 'market_value' field, so even though we may internally represent it as num_shares, is this good?
             "market_value": cashAmount,
             "change_since_close": "--",
         })
@@ -196,8 +182,7 @@ class PortfolioManager:
 
         for holding in holdings:
             h_type = holding["h_type"]
-            market_value = holding.get(
-                "market_value", holding["num_shares"] * holding["curr_price"])
+            market_value = holding["market_value"]
 
             value_by_type[h_type] = value_by_type.get(h_type, 0) + market_value
             total_value += market_value

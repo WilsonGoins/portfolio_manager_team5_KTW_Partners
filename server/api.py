@@ -1,35 +1,91 @@
 import logging
 import os
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
+from flask_cors import CORS
 from db_manager import DBManager
 from dotenv import load_dotenv
 from finance_manager import FinanceManager
-from db_items import Holding, Transaction
+from portfolio_manager import PortfolioManager
 
 load_dotenv()
 DB_CONNECTION_STR = os.getenv("DB_CONNECTION_STRING")
 
 app = Flask(__name__)
+CORS(app)
 
-logging.basicConfig(
-    level=logging.INFO  # change to DEBUG for db cache logging
-)
+logging.basicConfig(level=logging.INFO)
 
-db_manager = DBManager(
-    DB_CONNECTION_STR,
-    flask_logger=app.logger,
-    enable_cache=True
-)
-
-# constructor may need modification later
+db_manager = DBManager(DB_CONNECTION_STR, flask_logger=app.logger, enable_cache=True)
 finance_manager = FinanceManager(flask_logger=app.logger)
-
-# No logic should really be performed here with the exception of Error handling
-# app.logger.[warning, error, info, debug] can be used for logging
-# DBManager and FinanceManager should contain query logic
-# this controller should be stupid and not know anything
+portfolio_manager = PortfolioManager(db_manager, finance_manager)
 
 
 @app.route("/")
 def hello_world():
     return jsonify({"message": "Hello, World!", "status": "success"})
+
+
+@app.route("/api/overview")
+def overview():
+    """Returns HoldingsTable + AllocationsDict for the Overview page (chart + table + pie chart)."""
+    try:
+        return jsonify(portfolio_manager.GetOverviewData())
+    except Exception as e:
+        app.logger.error(f"Failed to get overview data: {e}", exc_info=True)
+        return jsonify({"error": "Failed to fetch overview data"}), 500
+
+
+@app.route("/api/transactions")
+def transactions():
+    """Returns the full transaction history for the Transactions page."""
+    try:
+        return jsonify(portfolio_manager.GetTransactions())
+    except Exception as e:
+        app.logger.error(f"Failed to get transactions: {e}", exc_info=True)
+        return jsonify({"error": "Failed to fetch transactions"}), 500
+
+
+@app.route("/api/cash")
+def cash():
+    """Returns the user's current cash balance."""
+    try:
+        return jsonify({"cash": portfolio_manager.GetCashAmount()})
+    except Exception as e:
+        app.logger.error(f"Failed to get cash amount: {e}", exc_info=True)
+        return jsonify({"error": "Failed to fetch cash amount"}), 500
+
+
+@app.route("/api/buy", methods=["POST"])
+def buy():
+    data = request.get_json()
+    try:
+        ticker, quantity, price = data["ticker"], data["quantity"], data["price"]
+    except (KeyError, TypeError):
+        return jsonify({"error": "ticker, quantity, and price are required"}), 400
+
+    try:
+        portfolio_manager.Buy(ticker, quantity, price)
+        return jsonify({"status": "success"})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        app.logger.error(f"Failed to process buy: {e}", exc_info=True)
+        return jsonify({"error": "Failed to process buy"}), 500
+
+
+@app.route("/api/sell", methods=["POST"])
+def sell():
+    data = request.get_json()
+    try:
+        ticker, quantity, price = data["ticker"], data["quantity"], data["price"]
+    except (KeyError, TypeError):
+        return jsonify({"error": "ticker, quantity, and price are required"}), 400
+
+    try:
+        portfolio_manager.Sell(ticker, quantity, price)
+        return jsonify({"status": "success"})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        app.logger.error(f"Failed to process sell: {e}", exc_info=True)
+        return jsonify({"error": "Failed to process sell"}), 500
