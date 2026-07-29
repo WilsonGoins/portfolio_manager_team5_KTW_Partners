@@ -135,7 +135,14 @@ export function SecurityCard({ data }) {
                 </linearGradient>
               </defs>
               <YAxis domain={['dataMin - 2', 'dataMax + 2']} hide />
-              <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94a3b8' }} />
+              <XAxis 
+                dataKey="label" 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fontSize: 11, fill: '#94a3b8' }} 
+                interval="preserveStartEnd"  
+                minTickGap={30}             
+              />
               <Tooltip
                 contentStyle={{
                   backgroundColor: '#1e293b',

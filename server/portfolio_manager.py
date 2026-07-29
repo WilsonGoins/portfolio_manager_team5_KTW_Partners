@@ -36,7 +36,8 @@ class PortfolioManager:
         finalRes["HoldingsTable"] = enrichedHoldings
 
         # now get the allocations for the allocations graph
-        allocationsDict = self.CalculateAllocationByType(enrichedHoldings)       # cash is passed in as a holding here
+        allocationsDict = self.CalculateAllocationByType(
+            enrichedHoldings)       # cash is passed in as a holding here
         finalRes["AllocationsDict"] = allocationsDict
 
         return finalRes
@@ -82,10 +83,12 @@ class PortfolioManager:
             existing.quantity_shares += quantity
             self.db_manager.update_holding(existing)
 
-        self.db_manager.set_cash((cash - total_cost))       # set cash to new amount after purchase
+        # set cash to new amount after purchase
+        self.db_manager.set_cash((cash - total_cost))
 
         # record the buy in the transactions ledger
-        self.db_manager.add_transaction(Transaction(None, ticker, quantity, price, datetime.now(), "buy"))
+        self.db_manager.add_transaction(Transaction(
+            None, ticker, quantity, price, datetime.now(), "buy"))
 
     # Sell shares of a security.
     # Adds the proceeds to cash, reduces (or closes) the holding, and records the transaction.
@@ -102,7 +105,8 @@ class PortfolioManager:
 
         sellAmount = quantity * price       # get amount of money we make from sale
 
-        self.db_manager.set_cash((cash + sellAmount))       # add that to current cash
+        # add that to current cash
+        self.db_manager.set_cash((cash + sellAmount))
 
         existing.quantity_shares -= quantity
         if existing.quantity_shares == 0:
@@ -111,7 +115,8 @@ class PortfolioManager:
             self.db_manager.update_holding(existing)
 
         # record the sell in the transactions ledger
-        self.db_manager.add_transaction(Transaction(None, ticker, quantity, price, datetime.now(), "sell"))
+        self.db_manager.add_transaction(Transaction(
+            None, ticker, quantity, price, datetime.now(), "sell"))
 
     # Gets the current amount of cash for the user
     # Returns the amount of cash, not the cash holding
@@ -193,3 +198,6 @@ class PortfolioManager:
                                   100) if total_value else 0
 
         return allocation
+
+    def get_top_movers(self) -> list[dict]:
+        return self.finance_manager.get_top_movers()

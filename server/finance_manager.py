@@ -8,11 +8,21 @@ class FinanceManager:
     def __init__(self, flask_logger: logging.Logger):
         self.logger = flask_logger
 
+    def _format_large_number(self, val: float) -> str:
+        """Helper to format large raw numbers into readable financial string values ($3.05T, 48.2M, etc.)."""
+        if not val or val == 0:
+            return "N/A"
+
+        is_currency = val > 1000  # Simple heuristic for Market Cap vs Volume
+
+        for unit, symbol in [(1_000_000_000_000, 'T'), (1_000_000_000, 'B'), (1_000_000, 'M'), (1_000, 'K')]:
+            if abs(val) >= unit:
+                formatted = f"{val / unit:.1f}{symbol}"
+                return f"${formatted}" if is_currency else formatted
+        return f"${val:.2f}" if is_currency else f"{val:.0f}"
+
     def get_stock_by_ticker(self, ticker: str) -> dict:
-        """
-        Method 1: Query for stock by ticker.
-        Returns: current price, stock name, stock type, previous close
-        """
+        """Method 1: Query for stock by ticker."""
         try:
             info = yf.Ticker(ticker).info
             return {
@@ -23,15 +33,12 @@ class FinanceManager:
                 "previous_close": info.get("previousClose"),
             }
         except Exception as e:
-            self.logger.error(f"Failed to fetch stock by ticker '{ticker}': {e}", exc_info=True)
+            self.logger.error(f"Failed to fetch stock by ticker '{
+                              ticker}': {e}", exc_info=True)
             return None
 
     def get_stock_by_name(self, name: str, max_results: int = 5) -> list[dict]:
-        """
-        Method 2: Query for stocks by name/ticker (fuzzy).
-        Returns up to `max_results` closely matching securities, ranked by relevance.
-        Each result: current price, ticker, name, stock type, previous close.
-        """
+        """Method 2: Query for stocks by name/ticker (fuzzy)."""
         query = name.strip()
         if not query:
             self.logger.warning("Empty search query received")
@@ -51,13 +58,13 @@ class FinanceManager:
                     matches.append(stock_data)
             return matches
         except Exception as e:
-            self.logger.error(f"Failed to fetch stocks by name '{query}': {e}", exc_info=True)
+            self.logger.error(f"Failed to fetch stocks by name '{
+                              query}': {e}", exc_info=True)
             return []
 
     def get_top_movers(self, count: int = 5) -> list[dict]:
         """
         Method 3: Query for the 5 biggest movers.
-        Returns: ticker, name, current price, previous close, market cap
         """
         try:
             results = yf.screen("day_gainers", count=count)
@@ -65,24 +72,19 @@ class FinanceManager:
 
             movers = []
             for q in quotes:
-                movers.append({
-                    "ticker": q.get("symbol"),
-                    "name": q.get("longName") or q.get("shortName"),
-                    "current_price": q.get("regularMarketPrice"),
-                    "previous_close": q.get("regularMarketPreviousClose"),
-                    "market_cap": q.get("marketCap"),
-                })
+                ticker = q.get("symbol")
+                if ticker:
+                    enriched = self._get_security_details(ticker)
+                    if enriched:
+                        movers.append(enriched)
             return movers
         except Exception as e:
-            self.logger.error(f"Failed to fetch top movers: {e}", exc_info=True)
+            self.logger.error(f"Failed to fetch top movers: {
+                              e}", exc_info=True)
             return []
 
     def search_securities(self, query: str, max_results: int = 5) -> list[dict]:
-        """
-        Searches for securities matching a name/ticker query and returns
-        richly-detailed data for each, matching what the Explore page's
-        SecurityCard component needs (price, ratios, 52wk range, chart history).
-        """
+        """Searches for securities matching a query and returns rich SecurityCard-shaped data."""
         query = query.strip()
         if not query:
             self.logger.warning("Empty securities search query received")
@@ -97,7 +99,8 @@ class FinanceManager:
                     securities.append(enriched)
             return securities
         except Exception as e:
-            self.logger.error(f"Failed to search securities for '{query}': {e}", exc_info=True)
+            self.logger.error(f"Failed to search securities for '{
+                              query}': {e}", exc_info=True)
             return []
 
     def _get_security_details(self, ticker: str) -> dict:
@@ -106,28 +109,38 @@ class FinanceManager:
             stock = yf.Ticker(ticker)
             info = stock.info
 
-            current_price = info.get("currentPrice") or info.get("regularMarketPrice")
-            previous_close = info.get("previousClose")
+            current_price = info.get("currentPrice") or info.get(
+                "regularMarketPrice") or 0.0
+            previous_close = info.get("previousClose") or current_price
+
+            # Capitalize type nicely (e.g. "EQUITY" -> "Equity")
+            raw_type = info.get("quoteType", "Equity")
+            formatted_type = raw_type.title() if isinstance(raw_type, str) else "Equity"
+
+            # PE Ratio formatting
+            pe = info.get("trailingPE")
+            pe_formatted = round(pe, 1) if pe is not None else "N/A"
 
             return {
                 "symbol": ticker.upper(),
-                "name": info.get("longName") or info.get("shortName"),
-                "h_type": info.get("quoteType"),
-                "curr_price": current_price,
-                "previous_close": previous_close,
-                "change_since_close": (current_price or 0) - (previous_close or 0),
-                "pe_ratio": info.get("trailingPE"),
-                "market_cap": info.get("marketCap"),
-                "high_52wk": info.get("fiftyTwoWeekHigh"),
-                "low_52wk": info.get("fiftyTwoWeekLow"),
-                "volume": info.get("volume"),
+                "name": info.get("longName") or info.get("shortName") or ticker.upper(),
+                "h_type": formatted_type,
+                "curr_price": round(float(current_price), 2),
+                "previous_close": round(float(previous_close), 2),
+                "change_since_close": round(float(current_price - previous_close), 2),
+                "pe_ratio": pe_formatted,
+                "market_cap": self._format_large_number(info.get("marketCap", 0)),
+                "high_52wk": round(float(info.get("fiftyTwoWeekHigh", current_price)), 2),
+                "low_52wk": round(float(info.get("fiftyTwoWeekLow", current_price)), 2),
+                "volume": self._format_large_number(info.get("volume", 0)),
                 "performanceHistory": self._get_performance_history(stock),
             }
         except Exception as e:
-            self.logger.error(f"Failed to get details for '{ticker}': {e}", exc_info=True)
+            self.logger.error(f"Failed to get details for '{
+                              ticker}': {e}", exc_info=True)
             return None
 
-    def _get_performance_history(self, stock: "yf.Ticker") -> dict:
+    def _get_performance_history(self, stock: yf.Ticker) -> dict:
         """Builds the 1W/1M/1Y/YTD chart data SecurityCard expects."""
         ranges = {"1W": "5d", "1M": "1mo", "1Y": "1y", "YTD": "ytd"}
         history = {}
@@ -135,7 +148,8 @@ class FinanceManager:
             try:
                 hist = stock.history(period=period)
                 history[label] = [
-                    {"label": date.strftime("%b %d"), "p": round(row["Close"], 2)}
+                    {"label": date.strftime("%b %d"), "p": round(
+                        float(row["Close"]), 2)}
                     for date, row in hist.iterrows()
                 ]
             except Exception:

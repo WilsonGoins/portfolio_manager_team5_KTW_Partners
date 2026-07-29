@@ -15,7 +15,8 @@ CORS(app)
 
 logging.basicConfig(level=logging.INFO)
 
-db_manager = DBManager(DB_CONNECTION_STR, flask_logger=app.logger, enable_cache=True)
+db_manager = DBManager(
+    DB_CONNECTION_STR, flask_logger=app.logger, enable_cache=True)
 finance_manager = FinanceManager(flask_logger=app.logger)
 portfolio_manager = PortfolioManager(db_manager, finance_manager)
 
@@ -52,26 +53,12 @@ def cash():
         return jsonify({"error": "Failed to fetch cash amount"}), 500
 
 
-@app.route("/api/watchlist")
-def watchlist():
+@app.route("/api/top-movers")
+def get_top_movers():
     """Top 5 movers, reshaped to match WatchListCard's expected {symbol, price, change} shape."""
     try:
-        movers = finance_manager.get_top_movers(count=5)
-        watchlist_data = []
-        for m in movers:
-            price = m.get("current_price")
-            prev_close = m.get("previous_close")
-            change_pct = (
-                ((price - prev_close) / prev_close) * 100
-                if price is not None and prev_close
-                else 0
-            )
-            watchlist_data.append({
-                "symbol": m.get("ticker"),
-                "price": price,
-                "change": round(change_pct, 2),
-            })
-        return jsonify(watchlist_data)
+        movers_data = portfolio_manager.get_top_movers()
+        return jsonify(movers_data)
     except Exception as e:
         app.logger.error(f"Failed to get watchlist data: {e}", exc_info=True)
         return jsonify({"error": "Failed to fetch watchlist data"}), 500
