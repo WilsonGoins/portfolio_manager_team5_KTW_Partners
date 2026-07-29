@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ResponsiveContainer, AreaChart, Area, Tooltip, YAxis, XAxis } from 'recharts';
 import './SecurityCard.css';
 
@@ -6,7 +6,37 @@ export function SecurityCard({ data }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [selectedRange, setSelectedRange] = useState('1M');
+  const [currentShares, setCurrentShares] = useState(0);
+  const [currentAlloc, setCurrentAlloc] = useState(0);
+  const [currentMarketValue, setCurrentMarketValue] = useState(0.00);
+  const [isLoading, setIsLoading] = useState(true);
 
+
+ async function fetchHoldingInfo() {
+  try {
+    setIsLoading(true);
+    const response = await fetch('/api/overview'); 
+
+    if (!response.ok) {
+      throw new Error(`Server returned ${response.status}`);
+    }
+
+    const overviewData = await response.json();
+    const holdingsData = overviewData?.HoldingsTable || [];
+
+    const holding = holdingsData.find(
+      (item) => item.symbol === data.symbol
+    );
+
+    setCurrentShares(holding ? holding.num_shares : 0);
+    setCurrentAlloc(holding ? Number(holding.allocation_pct).toFixed(2) : '0.00');
+    setCurrentMarketValue(holding ? Number(holding.market_value).toFixed(2) : '0.00');
+  } catch (err) {
+    console.error("Failed to fetch overview data:", err);
+  } finally {
+    setIsLoading(false);
+  }
+}
   const {
     symbol,
     name,
@@ -39,6 +69,11 @@ export function SecurityCard({ data }) {
     console.log(`Buy order: ${quantity} shares of ${symbol}`);
   };
 
+  const handleSell = (e) => {
+    e.stopPropagation();
+    console.log(`Sell order: ${quantity} shares of ${symbol}`)
+  }
+
   const handleRangeChange = (e, range) => {
     e.stopPropagation();
     setSelectedRange(range);
@@ -47,7 +82,7 @@ export function SecurityCard({ data }) {
   return (
     <div
       className={`security-card ${isExpanded ? 'expanded' : ''}`}
-      onClick={() => setIsExpanded(!isExpanded)}
+      onClick={() => {setIsExpanded(!isExpanded); if (!isExpanded) fetchHoldingInfo() }}
     >
       <div className="card-top-row">
         <div>
@@ -152,6 +187,18 @@ export function SecurityCard({ data }) {
       {isExpanded && (
         <div className="buy-panel-container" onClick={(e) => e.stopPropagation()}>
           <div className="divider" />
+            <div className="holding-info">
+              <p><b>Personal Holding Information for {symbol}:</b></p>
+              {isLoading ? (
+                <p>Loading...</p>
+              ) : (
+                <>
+                  <p>Owned Shares: {currentShares}</p>
+                  <p>Market Value: ${currentMarketValue}</p>
+                  <p>Allocation: {currentAlloc}%</p>
+                </>
+              )}
+            </div>
           <div className="buy-panel">
             <div className="buy-input-group">
               <label htmlFor={`qty-${symbol}`}>Qty:</label>
@@ -164,8 +211,11 @@ export function SecurityCard({ data }) {
                 className="buy-quantity-input"
               />
             </div>
+            <button className="buy-button" onClick={handleSell} disabled={quantity > currentShares}>
+              Sell (${(curr_price * quantity).toFixed(2)})
+            </button>
             <button className="buy-button" onClick={handleBuy}>
-              Buy {symbol} (${(curr_price * quantity).toFixed(2)})
+              Buy (${(curr_price * quantity).toFixed(2)})
             </button>
           </div>
         </div>
