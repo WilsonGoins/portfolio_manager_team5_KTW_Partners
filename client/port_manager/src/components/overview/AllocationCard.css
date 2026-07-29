@@ -2,34 +2,120 @@
   margin-bottom: 0;
 }
 
-.allocation-legend {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+/* Same header + hairline-divider structure as the watchlist, so the two
+   cards in this column read as one system. */
+.allocation-table {
   margin-top: 16px;
   border-top: 1px solid #e2e8f0;
-  padding-top: 20px;
+  padding-top: 4px;
 }
 
-.legend-item {
+.allocation-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px;
+  margin: 0 -8px;
+  border-bottom: 1px solid #e2e8f0;
+  color: #a0aec0;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.allocation-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  margin: 0 -8px;
+  border-bottom: 1px solid #edf2f7;
+}
+
+.allocation-row:last-child {
+  border-bottom: none;
+}
+
+.allocation-row:hover {
+  background-color: #f7fafc;
+}
+
+.allocation-identity {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  font-size: 0.875rem;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
 }
 
 .legend-icon {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  margin-top: 3px;
+  flex-shrink: 0;
 }
 
-.legend-label {
-  color: #4a5568;
-}
-
-.legend-value {
-  font-weight: 500;
+.allocation-type {
+  font-weight: 600;
+  font-size: 0.975rem;
   color: #1a202c;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.allocation-figures {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+.allocation-value {
+  font-size: 0.975rem;
+  color: #1a202c;
+  font-variant-numeric: tabular-nums;
+}
+
+.allocation-pct {
+  font-size: 0.8125rem;
+  color: #718096;
+  font-variant-numeric: tabular-nums;
+}
+
+.allocation-tooltip {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.05);
+  font-size: 0.85rem;
+}
+
+.allocation-tooltip-type {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: #1a202c;
+  margin-bottom: 4px;
+}
+
+.allocation-tooltip-value {
+  color: #1a202c;
+  font-variant-numeric: tabular-nums;
+}
+
+.allocation-tooltip-pct {
+  color: #718096;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.allocation-empty-message {
+  margin: 0;
+  padding: 16px 0;
+  color: #718096;
+  font-size: 0.875rem;
 }

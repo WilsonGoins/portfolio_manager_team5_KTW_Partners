@@ -14,7 +14,10 @@ class PortfolioManager:
     # Retrieves all data needed for overview page
     # Returns in a dict of form
         # {HoldingsTable: [{symbol: AAPL, ..., market_value: ..., change_since_close: ..., allocation_pct: 12.5}, {symbol: NVDA, ...}],
-        #  AllocationsDict: {etf: 40, cash: 60}
+        #  Allocations: [{h_type: ETF, market_value: 46559.62, allocation_pct: 36.0}, {h_type: Cash, ...}],
+        #  PortfolioSummary: {total_value: ..., day_change: ..., day_change_pct: ...},
+        #  PortfolioHistory: [{date: "2026-07-27", value: ...}, ...],
+        #  TopMovers: [{symbol: ..., name: ..., price: ..., change: ...}, ...]
         # }
 
     def GetOverviewData(self):
@@ -36,8 +39,8 @@ class PortfolioManager:
         finalRes["HoldingsTable"] = enrichedHoldings
 
         # now get the allocations for the allocations graph
-        allocationsDict = self.CalculateAllocationByType(enrichedHoldings)       # cash is passed in as a holding here
-        finalRes["AllocationsDict"] = allocationsDict
+        allocations = self.CalculateAllocationByType(enrichedHoldings)       # cash is passed in as a holding here
+        finalRes["Allocations"] = allocations
 
         # headline numbers for the portfolio value card
         summary = self.CalculatePortfolioSummary(enrichedHoldings)
@@ -261,9 +264,11 @@ class PortfolioManager:
 
         return enriched
 
-    # Aggregates market value of holdings by type (cash is included as the "cash" type,
-    # since CalculateHoldingInfo adds it as a holding)
-    # Returns a dict of {h_type: percentage_of_portfolio}
+    # Aggregates market value of holdings by type (cash is included as the "Cash" type,
+    # since CalculateHoldingInfo adds it as a holding).
+    # Returns a list of {h_type, market_value, allocation_pct}, sorted by type name so a
+    # type keeps the same slice colour from one refresh to the next -- sorting by value
+    # would repaint the chart whenever two types swapped places.
 
     def CalculateAllocationByType(self, holdings):
         value_by_type = {}
@@ -276,9 +281,13 @@ class PortfolioManager:
             value_by_type[h_type] = value_by_type.get(h_type, 0) + market_value
             total_value += market_value
 
-        allocation = {}
-        for h_type, value in value_by_type.items():
-            allocation[h_type] = (value / total_value *
-                                  100) if total_value else 0
+        allocations = []
+        for h_type in sorted(value_by_type):
+            value = value_by_type[h_type]
+            allocations.append({
+                "h_type": h_type,
+                "market_value": value,
+                "allocation_pct": (value / total_value * 100) if total_value else 0,
+            })
 
-        return allocation
+        return allocations

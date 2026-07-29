@@ -136,7 +136,9 @@ export function PortfolioValueCard({ data, summary }) {
           </p>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={currentChartData} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
+            {/* right margin holds the last x-axis label, which is centred on the
+                final point and so overhangs the plot by half its width */}
+            <AreaChart data={currentChartData} margin={{ top: 10, right: 26, left: 0, bottom: 0 }}>
               <CartesianGrid vertical={false} stroke="#f0f0f0" />
               <XAxis
                 dataKey="date"

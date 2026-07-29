@@ -5,15 +5,13 @@
   min-height: 100vh;
 }
 
+/* The four cards are direct grid items, so row 2 (Holdings / Allocation) starts
+   at one shared y regardless of how tall row 1 is. align-items: start keeps each
+   card at its natural height instead of stretching it to fill its row. */
 .overview-main-content {
   display: grid;
   grid-template-columns: 1.6fr 1fr;
   gap: 24px;
-}
-
-.overview-column {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
+  align-items: start;
 }
 
