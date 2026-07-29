@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Search } from './Search';
 import { SecurityCard } from './SecurityCard';
+import "./ExploreSecurities.css"
 
 export function ExploreSecurities() {
   const [securities, setSecurities] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const fetchSecurities = async () => {
@@ -33,14 +36,32 @@ export function ExploreSecurities() {
     fetchSecurities();
   }, []);
 
+  const handleBackendSearch = async (query) => {
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/securities/search?q=${encodeURIComponent(query)}`);
+      const data = await response.json();
+      setSecurities(data);
+    } catch (err) {
+      console.error('Failed to search securities:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <>
-      <Search />
-      <div className="securities-grid">
+    <div className="explore-securities-container">
+      <Search
+        query={searchQuery}
+        onQueryChange={setSearchQuery}
+        onSearch={handleBackendSearch}
+        isLoading={loading}
+      />
+      <div className="securities">
         {securities.map((security) => (
           <SecurityCard key={security.symbol} data={security} />
         ))}
       </div>
-    </>
+    </div>
   );
 }
