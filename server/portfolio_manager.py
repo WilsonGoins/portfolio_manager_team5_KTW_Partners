@@ -48,6 +48,34 @@ class PortfolioManager:
         finalRes["PortfolioHistory"] = self.GetPortfolioHistory(
             todaysValue=summary["total_value"])
 
+        # the watchlist's rows
+        finalRes["TopMovers"] = self.GetTopMovers()
+
+        return finalRes
+
+    # Today's biggest market movers for the watchlist. Reshapes the finance
+    # manager's quotes into [{"symbol", "name", "price", "change"}], where
+    # change is the percent move since the previous close.
+
+    def GetTopMovers(self, count: int = 5):
+        finalRes = []
+
+        for mover in self.finance_manager.get_top_movers(count):
+            price = mover["current_price"]
+            previousClose = mover["previous_close"]
+
+            # skip any quote we can't compute a move from rather than
+            # sending the frontend a null it has to defend against
+            if price is None or not previousClose:
+                continue
+
+            finalRes.append({
+                "symbol": mover["ticker"],
+                "name": mover["name"],
+                "price": price,
+                "change": (price - previousClose) / previousClose * 100,
+            })
+
         return finalRes
 
     # Returns the stored portfolio value snapshots oldest first, as

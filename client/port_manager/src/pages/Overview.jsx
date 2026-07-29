@@ -5,19 +5,12 @@ import { AllocationCard } from "../components/overview/AllocationCard.jsx";
 import { HoldingsCard } from "../components/overview/HoldingsCard.jsx";
 import "./Overview.css";
 
-const watchlistData = [
-  { symbol: 'AMD', price: 142.30, change: 2.10 },
-  { symbol: 'NFLX', price: 645.80, change: -0.55 },
-  { symbol: 'META', price: 498.20, change: 1.35 },
-  { symbol: 'BA', price: 178.90, change: -2.20 },
-  { symbol: 'JPM', price: 205.60, change: 0.48 },
-];
-
 export function Overview() {
   const [holdingsData, setHoldingsData] = useState([]);
   const [allocationData, setAllocationData] = useState({});
   const [portfolioHistory, setPortfolioHistory] = useState([]);
   const [portfolioSummary, setPortfolioSummary] = useState(null);
+  const [topMovers, setTopMovers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -37,6 +30,7 @@ export function Overview() {
         setAllocationData(overviewData.AllocationsDict || {});
         setPortfolioHistory(overviewData.PortfolioHistory || []);
         setPortfolioSummary(overviewData.PortfolioSummary || null);
+        setTopMovers(overviewData.TopMovers || []);
       } catch (err) {
         console.error("Failed to fetch overview data:", err);
         setError(err.message);
@@ -81,7 +75,19 @@ export function Overview() {
         </div>
 
         <div className="overview-column right-column">
-          <WatchListCard data={watchlistData} />
+          {isLoading ? (
+            <div className="card watchlist-card">
+              <h3>Watchlist</h3>
+              <p style={{ color: '#718096', padding: '16px' }}>Loading movers...</p>
+            </div>
+          ) : error ? (
+            <div className="card watchlist-card">
+              <h3>Watchlist</h3>
+              <p style={{ color: '#e53e3e', padding: '16px' }}>Error loading data: {error}</p>
+            </div>
+          ) : (
+            <WatchListCard data={topMovers} />
+          )}
           {isLoading ? (
             <div className="card allocation-card">
               <h3>Allocation</h3>

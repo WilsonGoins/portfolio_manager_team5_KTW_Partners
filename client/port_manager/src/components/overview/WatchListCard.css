@@ -35,3 +35,10 @@
   min-width: 60px;
   text-align: right;
 }
+
+.watchlist-empty-message {
+  margin: 0;
+  padding: 16px 0;
+  color: #718096;
+  font-size: 0.875rem;
+}
