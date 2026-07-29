@@ -1,8 +1,9 @@
-import psycopg
 import logging
+from contextlib import contextmanager
 from typing import Any
 from db_items import Holding, Transaction, PortfolioValue
 from psycopg.rows import dict_row
+from psycopg_pool import ConnectionPool
 from datetime import datetime
 
 
@@ -20,16 +21,34 @@ class DBManager():
         self.logger = flask_logger
         self._enable_cache = enable_cache
         self._cache: dict[str, Any] = {}
-        self._conn = None
+        self._pool = ConnectionPool(
+            conn_str,
+            kwargs={"row_factory": dict_row},
+            check=ConnectionPool.check_connection,
+            min_size=1,
+            max_size=4,
+            max_lifetime=5 * 60,
+            open=False)
 
         try:
-            self._conn = psycopg.connect(conn_str, row_factory=dict_row)
+            self._pool.open(wait=True, timeout=10)
             self.logger.info("Database connected successfully.")
         except Exception as e:
             self.logger.error(f"Failed to connect to database: {
                               e}", exc_info=True)
             self.logger.error(
                 "WE SHOULD RERAISE HERE TO BE HANDLED IN API CONTROLLER")
+
+    @contextmanager
+    def _cursor(self):
+        """Checks a connection out of the pool and yields a cursor on it.
+
+        The transaction is committed when the block exits normally and rolled
+        back if it raises, so no connection is ever left idle in transaction.
+        """
+        with self._pool.connection() as conn:
+            with conn.cursor() as cur:
+                yield cur
 
     def empty_cache(self, key: str = None):
         if key is None:
@@ -44,7 +63,7 @@ class DBManager():
     # -------------------- CASH --------------------
 
     def get_cash(self) -> float | None:
-        with self._conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute("SELECT value FROM cash WHERE uid = %s", [_CASH_PK])
             cash_row = cur.fetchone()
             cash_value: float = float(
@@ -59,9 +78,8 @@ class DBManager():
             ON CONFLICT (uid)
             DO UPDATE SET value = EXCLUDED.value;
         """
-        with self._conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(sql_str, [_CASH_PK, new_value])
-            self._conn.commit()
         return new_value
 
     # -------------------- READ --------------------
@@ -74,7 +92,7 @@ class DBManager():
         else:
             self.logger.debug(f"Cache[MISS] \"pv:{p_date}\"")
 
-        with self._conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute("SELECT * FROM portfolio_value WHERE p_date = %s",
                         [p_date])
 
@@ -98,7 +116,7 @@ class DBManager():
         else:
             self.logger.debug("Cache[MISS] \"portfolio_values\"")
 
-        with self._conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute("SELECT * FROM portfolio_value")
 
             portfolio_values: list[PortfolioValue] = []
@@ -120,7 +138,7 @@ class DBManager():
         else:
             self.logger.debug(f"Cache[MISS] \"holding:{ticker_symbol}\"")
 
-        with self._conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute("SELECT * FROM holdings WHERE ticker = %s",
                         [ticker_symbol])
 
@@ -144,7 +162,7 @@ class DBManager():
         else:
             self.logger.debug("Cache[MISS] \"holdings\"")
 
-        with self._conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute("SELECT * FROM holdings")
 
             holdings: list[Holding] = []
@@ -167,7 +185,7 @@ class DBManager():
         else:
             self.logger.debug(f"Cache[MISS] \"transaction:{trans_id}\"")
 
-        with self._conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute("SELECT * FROM transactions WHERE trans_id = %s",
                         [trans_id])
 
@@ -191,7 +209,7 @@ class DBManager():
         else:
             self.logger.debug("Cache[MISS] \"transactions\"")
 
-        with self._conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute("SELECT * FROM transactions")
 
             transactions: list[Transaction] = []
@@ -207,19 +225,17 @@ class DBManager():
     # -------------------- CREATE --------------------
 
     def add_holding(self, holding: Holding) -> list[Holding]:
-        with self._conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute("INSERT INTO holdings (ticker, name, h_type, quantity_shares) VALUES (%s, %s, %s, %s)",
                         [holding.ticker, holding.name, holding.h_type, holding.quantity_shares])
-            self._conn.commit()
             self.empty_cache()
 
         return self.get_holdings()
 
     def add_transaction(self, transaction: Transaction) -> list[Transaction]:
-        with self._conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute("INSERT INTO transactions (ticker, quantity, price, trans_date, action_taken) VALUES (%s, %s, %s, %s, %s)",
                         [transaction.ticker, transaction.quantity, transaction.price, str(transaction.trans_date), transaction.action_taken])
-            self._conn.commit()
             self.empty_cache()
 
         return self.get_transactions()
@@ -227,19 +243,17 @@ class DBManager():
     # -------------------- UPDATE --------------------
 
     def update_holding(self, holding: Holding) -> list[Holding]:
-        with self._conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute("UPDATE holdings SET name=%s, h_type=%s, quantity_shares=%s WHERE ticker=%s",
                         [holding.name, holding.h_type, holding.quantity_shares, holding.ticker])
-            self._conn.commit()
             self.empty_cache(key="holdings")
 
         return self.get_holdings()
 
     def update_transaction(self, transaction: Transaction) -> list[Transaction]:
-        with self._conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute("UPDATE transactions SET ticker=%s, quantity=%s, price=%s, trans_date=%s, action_taken=%s  WHERE trans_id=%s",
                         [transaction.ticker, transaction.quantity, transaction.price, transaction.trans_date, transaction.action_taken, transaction.trans_id])
-            self._conn.commit()
             self.empty_cache(key="transactions")
 
         return self.get_transactions()
@@ -247,19 +261,17 @@ class DBManager():
     # -------------------- DELETE --------------------
 
     def delete_holding(self, holding: Holding) -> list[Holding]:
-        with self._conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute("DELETE FROM holdings WHERE ticker = %s",
                         [holding.ticker])
-            self._conn.commit()
             self.empty_cache(key="holdings")
 
         return self.get_holdings()
 
     def delete_transaction(self, transaction: Transaction) -> list[Transaction]:
-        with self._conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute("DELETE FROM transactions WHERE trans_id = %s",
                         [transaction.trans_id])
-            self._conn.commit()
             self.empty_cache(key="transactions")
 
         return self.get_transactions()
