@@ -153,8 +153,9 @@ class PortfolioManager:
                 "change_since_close": change_since_close,
             })
 
-        # add cash as a holding, with "--" for the fields that don't apply to it
-        enriched.append({
+        # add cash as a holding, with "--" for the fields that don't apply to it.
+        # it goes at the front so the table always leads with the cash row.
+        enriched.insert(0, {
             "symbol": "--",
             "name": "Cash",
             "h_type": "Cash",

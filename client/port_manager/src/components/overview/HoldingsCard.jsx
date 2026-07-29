@@ -12,7 +12,7 @@ ModuleRegistry.registerModules([ClientSideRowModelModule]);
 export function HoldingsCard({ data }) {
   const ChangeCellRenderer = (params) => {
     const val = params.value;
-    if (val === null || val === undefined) return null;
+    if (val === null || val === undefined || val === "--") return "--";
     const isPositive = val >= 0;
     const formatted = `${isPositive ? '+' : ''}${Number(val).toFixed(2)}%`;
     return (
@@ -57,7 +57,7 @@ export function HoldingsCard({ data }) {
       field: 'market_value',
       headerName: 'Mkt Value',
       type: 'numericColumn',
-      valueFormatter: (params) => `$${params.value?.toFixed(2)}`,
+      valueFormatter: (params) => typeof params.value === 'number' ? `$${params.value?.toFixed(2)}` : '--',
       minWidth: 110,
       flex: 1.2,
     },
