@@ -10,6 +10,16 @@ import './HoldingsCard.css';
 
 ModuleRegistry.registerModules([ClientSideRowModelModule]);
 
+// Kept as constants because the container's height is derived from them -- if
+// these and the grid's own row sizing drift apart, the table stops cutting off
+// cleanly at a row boundary.
+const ROW_HEIGHT = 44;
+const HEADER_HEIGHT = 38;
+
+// Past this the table scrolls instead of growing, so a long portfolio doesn't
+// push the Allocation card far down the page.
+const MAX_VISIBLE_ROWS = 10;
+
 export function HoldingsCard({ data }) {
 
   const navigate = useNavigate();
@@ -106,17 +116,25 @@ export function HoldingsCard({ data }) {
     filter: false,
   }), []);
 
+  // domLayout="autoHeight" would size the grid to every row, so the height is
+  // pinned here instead: exactly enough for MAX_VISIBLE_ROWS, and the grid
+  // scrolls beyond that. Shorter portfolios still sit snug rather than leaving
+  // an empty band under the last row.
+  const gridHeight = useMemo(() => {
+    const rowCount = Math.min(data?.length ?? 0, MAX_VISIBLE_ROWS);
+    return HEADER_HEIGHT + Math.max(rowCount, 1) * ROW_HEIGHT;
+  }, [data]);
+
   return (
     <div className="card holdings-card">
       <h3>Holdings</h3>
-      <div className="ag-theme-alpine holdings-grid-container">
+      <div className="ag-theme-alpine holdings-grid-container" style={{ height: gridHeight }}>
         <AgGridReact
           rowData={data}
           columnDefs={columnDefs}
           defaultColDef={defaultColDef}
-          domLayout="autoHeight"
-          rowHeight={44}
-          headerHeight={38}
+          rowHeight={ROW_HEIGHT}
+          headerHeight={HEADER_HEIGHT}
           suppressCellFocus={true}
           onRowClicked={handleRowClick}
         />

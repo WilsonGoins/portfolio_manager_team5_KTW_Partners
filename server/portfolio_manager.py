@@ -242,10 +242,18 @@ class PortfolioManager:
             curr_price = holding["curr_price"]
             previous_close = holding["previous_close"]
 
-            market_value = num_shares * curr_price
-            change_since_close = num_shares * (curr_price - previous_close)
+            # A throttled Yahoo answers with fields missing rather than raising,
+            # so a quote can arrive with no previous close, or no price at all.
+            # The row keeps whatever it does know and carries "--" for the rest,
+            # the same way the cash row does, instead of failing the whole page.
+            priced = curr_price is not None
+            comparable = priced and bool(previous_close)
+
+            market_value = num_shares * curr_price if priced else 0
+            change_since_close = (num_shares * (curr_price - previous_close)
+                                  if comparable else "--")
             change_pct_since_close = ((curr_price - previous_close) /
-                                      previous_close * 100) if previous_close else 0
+                                      previous_close * 100) if comparable else "--"
             total_value += market_value
 
             enriched.append({
