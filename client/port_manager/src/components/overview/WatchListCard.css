@@ -39,6 +39,7 @@
 
 .watchlist-item:hover {
   background-color: #f7fafc;
+  cursor: pointer;
 }
 
 /* flex: 1 lets the name absorb the row's slack, instead of space-between
@@ -48,7 +49,7 @@
   flex-direction: column;
   gap: 1px;
   flex: 1;
-  min-width: 0;      /* lets the name ellipsis instead of stretching the row */
+  min-width: 0;
 }
 
 .stock-symbol {
