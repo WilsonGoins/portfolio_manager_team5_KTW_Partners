@@ -229,3 +229,59 @@ class FinanceManager:
             }
         except Exception as e:
             self.logger.error(f"Error building chart history: {e}")
+
+    def get_news(self, limit: int = 5) -> list[dict]:
+        """
+        Fetches news formatted specifically for a lightweight UI card.
+        Falls back through standard market tickers if the target ticker has no news.
+        """
+        fallback_tickers = ["SPY", "AAPL", "MSFT", "NVDA", "TSX"]
+        results = yf.screen("day_gainers", count=limit)
+        quotes = results.get("quotes", [])
+        candidate_tickers = []
+
+        for q in quotes:
+            candidate_tickers.append(q.get("symbol"))
+        candidate_tickers.extend(fallback_tickers)
+
+        card_items = []
+        for symbol in candidate_tickers:
+            if not symbol:
+                continue
+            try:
+                news_item = yf.Ticker(symbol.strip().upper()).news[0]
+                if not news_item:
+                    continue
+
+                content = news_item.get("content", news_item)
+                title = content.get("title")
+
+                link = content.get("canonicalUrl", {}).get(
+                    "url") or content.get("link")
+
+                provider = content.get("provider", {}).get(
+                    "displayName") or content.get("publisher", "Yahoo Finance")
+
+                image_url = None
+                thumbnail_data = content.get(
+                    "thumbnail") or news_item.get("thumbnail")
+
+                if isinstance(thumbnail_data, dict):
+                    resolutions = thumbnail_data.get("resolutions", [])
+                    if resolutions and len(resolutions) > 0:
+                        image_url = resolutions[0].get("url")
+                    else:
+                        image_url = thumbnail_data.get("url")
+
+                if title and link:
+                    card_items.append({
+                        "title": title,
+                        "publisher": provider,
+                        "url": link,
+                        "image_url": image_url,
+                        "ticker": symbol.upper()
+                    })
+
+            except Exception:
+                continue
+        return card_items

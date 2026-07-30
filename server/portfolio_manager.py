@@ -311,3 +311,6 @@ class PortfolioManager:
 
     def get_top_movers(self) -> list[dict]:
         return self.finance_manager.get_top_movers()
+
+    def get_news(self) -> list[dict]:
+        return self.finance_manager.get_news()
