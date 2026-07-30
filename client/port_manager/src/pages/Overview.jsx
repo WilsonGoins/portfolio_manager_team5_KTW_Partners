@@ -38,7 +38,10 @@ export function Overview() {
       setIsRefreshing(true);
 
       try {
-        const response = await fetch('/api/overview');
+        // a manual refresh asks the server to skip its quote cache; the first
+        // load is happy with whatever is already cached
+        const response = await fetch(
+          refreshToken === 0 ? '/api/overview' : '/api/overview?refresh=true');
 
         if (!response.ok) {
           throw new Error(`Server returned ${response.status}`);

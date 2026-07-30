@@ -1,11 +1,53 @@
 import yfinance as yf
 import logging
+import time
 from concurrent.futures import ThreadPoolExecutor
+from threading import Lock
 
 # Yahoo answers one ticker per request, so the only way to speed up a batch is to
 # have several in flight at once. Capped so a large portfolio doesn't open a
 # connection per holding and get us rate limited.
 _MAX_QUOTE_WORKERS = 8
+
+# How long a quote is reused before we go back to Yahoo for it. Long enough that
+# a page load costs nothing when someone just looked, short enough that the
+# prices on screen are still today's.
+_QUOTE_TTL_SECONDS = 45
+
+
+class _TTLCache:
+    """A small cache whose entries expire a fixed number of seconds after they
+    were stored.
+
+    Entries are written from the quote worker threads, so reads and writes are
+    both locked. Nothing is evicted on a timer -- an expired entry just reads as
+    a miss and is overwritten by the next fetch.
+    """
+
+    def __init__(self, ttl_seconds: float):
+        self._ttl = ttl_seconds
+        self._entries: dict = {}
+        self._lock = Lock()
+
+    def get(self, key):
+        """The cached value, or None if there isn't a fresh one. Failures are
+        never stored, so None is always a miss and never a cached result."""
+        with self._lock:
+            entry = self._entries.get(key)
+
+        if entry is None:
+            return None
+
+        value, stored_at = entry
+        return value if time.monotonic() - stored_at <= self._ttl else None
+
+    def set(self, key, value):
+        with self._lock:
+            self._entries[key] = (value, time.monotonic())
+
+    def clear(self):
+        with self._lock:
+            self._entries = {}
 
 
 class FinanceManager:
@@ -13,6 +55,12 @@ class FinanceManager:
 
     def __init__(self, flask_logger: logging.Logger):
         self.logger = flask_logger
+        self._cache = _TTLCache(_QUOTE_TTL_SECONDS)
+
+    def empty_cache(self):
+        """Drops every cached quote, so the next read goes back to Yahoo. Used by
+        the overview's manual refresh, which is meant to fetch, not to re-serve."""
+        self._cache.clear()
 
     def _format_large_number(self, val: float) -> str:
         """Helper to format large raw numbers into readable financial string values ($3.05T, 48.2M, etc.)."""
@@ -29,9 +77,13 @@ class FinanceManager:
 
     def get_stock_by_ticker(self, ticker: str) -> dict:
         """Method 1: Query for stock by ticker."""
+        cached = self._cache.get(("quote", ticker))
+        if cached is not None:
+            return cached
+
         try:
             info = yf.Ticker(ticker).info
-            return {
+            quote = {
                 "ticker": ticker.upper(),
                 "current_price": info.get("currentPrice") or info.get("regularMarketPrice"),
                 "name": info.get("longName") or info.get("shortName"),
@@ -42,6 +94,10 @@ class FinanceManager:
             self.logger.error(f"Failed to fetch stock by ticker '{
                               ticker}': {e}", exc_info=True)
             return None
+
+        # only successes are cached, so a blip doesn't stick around for the whole TTL
+        self._cache.set(("quote", ticker), quote)
+        return quote
 
     def get_stocks_by_tickers(self, tickers: list[str]) -> dict:
         """
@@ -113,22 +169,23 @@ class FinanceManager:
         """
         Method 3: Query for the 5 biggest movers.
         """
+        cached = self._cache.get(("movers", count))
+        if cached is not None:
+            return cached
+
         try:
             results = yf.screen("day_gainers", count=count)
             quotes = results.get("quotes", [])
 
-            movers = []
-            for q in quotes:
-                ticker = q.get("symbol")
-                if ticker:
-                    enriched = self._get_security_details(ticker)
-                    if enriched:
-                        movers.append(enriched)
-            return movers
+            symbols = [q.get("symbol") for q in quotes if q.get("symbol")]
+            movers = self._get_security_details_batch(symbols)
         except Exception as e:
             self.logger.error(f"Failed to fetch top movers: {
                               e}", exc_info=True)
             return []
+
+        self._cache.set(("movers", count), movers)
+        return movers
 
     def search_securities(self, query: str, max_results: int = 5) -> list[dict]:
         query = query.strip()
@@ -139,26 +196,34 @@ class FinanceManager:
             results = yf.Search(query, max_results=max_results).quotes
             symbols = [r.get("symbol") for r in results if r.get("symbol")]
 
-            if not symbols:
-                return []
-
-            securities = []
-            with ThreadPoolExecutor(max_workers=min(len(symbols), _MAX_QUOTE_WORKERS)) as executor:
-                futures = [executor.submit(
-                    self._get_security_details, sym) for sym in symbols]
-                for future in futures:
-                    res = future.result()
-                    if res is not None:
-                        securities.append(res)
-
-            return securities
+            return self._get_security_details_batch(symbols)
         except Exception as e:
             self.logger.error(f"Failed to search securities for '{
                               query}': {e}", exc_info=True)
             return []
 
+    def _get_security_details_batch(self, tickers: list[str]) -> list[dict]:
+        """Details for several tickers, in the order given.
+
+        Yahoo answers one ticker per request, so these run concurrently -- the
+        wait is roughly one round trip rather than one per ticker. Tickers that
+        fail are dropped rather than failing the whole batch.
+        """
+        if not tickers:
+            return []
+
+        with ThreadPoolExecutor(
+                max_workers=min(len(tickers), _MAX_QUOTE_WORKERS)) as executor:
+            details = executor.map(self._get_security_details, tickers)
+
+        return [d for d in details if d is not None]
+
     def _get_security_details(self, ticker: str) -> dict:
         """Builds the full SecurityCard-shaped dict for a single ticker."""
+        cached = self._cache.get(("details", ticker))
+        if cached is not None:
+            return cached
+
         try:
             stock = yf.Ticker(ticker)
             info = stock.info
@@ -175,7 +240,7 @@ class FinanceManager:
             pe = info.get("trailingPE")
             pe_formatted = round(pe, 1) if pe is not None else "N/A"
 
-            return {
+            details = {
                 "symbol": ticker.upper(),
                 "name": info.get("longName") or info.get("shortName") or ticker.upper(),
                 "h_type": formatted_type,
@@ -193,6 +258,9 @@ class FinanceManager:
             self.logger.error(f"Failed to get details for '{
                               ticker}': {e}", exc_info=True)
             return None
+
+        self._cache.set(("details", ticker), details)
+        return details
 
     def _get_performance_history(self, stock: yf.Ticker) -> dict:
         """Builds chart data by pulling 1 year of history ONCE and slicing in memory."""

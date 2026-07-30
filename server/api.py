@@ -31,6 +31,11 @@ def overview():
     """Returns everything the Overview page renders: HoldingsTable, Allocations,
     PortfolioSummary, PortfolioHistory, and TopMovers."""
     try:
+        # the navbar's Refresh button means "go and fetch", so it drops the quote
+        # cache first rather than being served whatever is still inside its TTL
+        if request.args.get("refresh") == "true":
+            finance_manager.empty_cache()
+
         return jsonify(portfolio_manager.GetOverviewData())
     except Exception as e:
         app.logger.error(f"Failed to get overview data: {e}", exc_info=True)
