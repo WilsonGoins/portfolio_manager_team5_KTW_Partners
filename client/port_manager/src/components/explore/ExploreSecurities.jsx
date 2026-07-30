@@ -1,51 +1,92 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Search } from './Search';
 import { SecurityCard } from './SecurityCard';
-import "./ExploreSecurities.css"
+import "./ExploreSecurities.css";
 
 export function ExploreSecurities() {
   const [securities, setSecurities] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [showingQueryResults, setShowingQueryResults] = useState(false)
+  const [searchText, setSearchText] = useState('');
 
-  useEffect(() => {
-    const fetchSecurities = async () => {
+  const fetchTopMovers = useCallback(async (isInitial = false) => {
+    try {
+      if (isInitial) setLoading(true);
 
-      const mockData = [
-        {
-          symbol: 'AAPL',
-          name: 'Apple Inc.',
-          h_type: 'Equity',
-          curr_price: 198.45,
-          previous_close: 196.01,
-          change_since_close: 292.80,
-        },
-        {
-          symbol: 'NVDA',
-          name: 'NVIDIA Corp.',
-          h_type: 'Equity',
-          curr_price: 126.75,
-          previous_close: 122.88,
-          change_since_close: 774.00,
-        },
-      ];
+      const response = await fetch('/api/top-movers');
 
-      setSecurities(mockData);
-    };
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}`);
+      }
 
-    fetchSecurities();
+      const watchlistData = await response.json();
+      setSecurities(watchlistData);
+      setError(null);
+    } catch (err) {
+      console.error("Failed to fetch top movers:", err);
+      setError(err.message);
+    } finally {
+      if (isInitial) setLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    if(!loading) {
+      setShowingQueryResults(searchQuery.trim() !== '');
+      setSearchText(searchQuery);
+    }
+  }, [loading])
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (searchQuery.trim() === '') {
+      fetchTopMovers(true);
+
+      const intervalId = setInterval(() => {
+        if (isMounted) fetchTopMovers(false);
+      }, 60 * 1000);
+
+      return () => {
+        isMounted = false;
+        clearInterval(intervalId);
+      };
+    }
+  }, [searchQuery, fetchTopMovers]);
+
   const handleBackendSearch = async (query) => {
+    if (!query.trim()) {
+      fetchTopMovers(true);
+      setShowingQueryResults(false);
+      return;
+    }
+
+    setSearchText(query);
+
     setLoading(true);
     try {
-      const response = await fetch(`/api/securities/search?q=${encodeURIComponent(query)}`);
+      const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+
+      if (!response.ok) throw new Error(`Search failed: ${response.status}`);
+
       const data = await response.json();
-      setSecurities(data);
+      setSecurities(Array.isArray(data) ? data : []);
+      setError(null);
     } catch (err) {
       console.error('Failed to search securities:', err);
+
+      setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleQueryChange = (newQuery) => {
+    setSearchQuery(newQuery);
+    if (newQuery.trim() === '') {
+      fetchTopMovers(true);
     }
   };
 
@@ -53,14 +94,27 @@ export function ExploreSecurities() {
     <div className="explore-securities-container">
       <Search
         query={searchQuery}
-        onQueryChange={setSearchQuery}
+        onQueryChange={handleQueryChange}
         onSearch={handleBackendSearch}
         isLoading={loading}
       />
+
+      {error && <div className="error-banner">{error}</div>}
+
+      {showingQueryResults ? (
+      <h3>Search results for {searchText}</h3>
+      ) : (
+      <h3>Top 5 Movers Of The Day...</h3>
+      )}
+
       <div className="securities">
-        {securities.map((security) => (
-          <SecurityCard key={security.symbol} data={security} />
-        ))}
+        {!loading && securities.length === 0 ? (
+          <p className="no-results">No securities found.</p>
+        ) : (
+          securities.map((security) => (
+            <SecurityCard key={security.symbol} data={security} />
+          ))
+        )}
       </div>
     </div>
   );

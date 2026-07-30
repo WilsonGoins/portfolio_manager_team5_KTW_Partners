@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ResponsiveContainer, AreaChart, Area, Tooltip, YAxis, XAxis } from 'recharts';
 import './SecurityCard.css';
 
@@ -6,6 +6,99 @@ export function SecurityCard({ data }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [selectedRange, setSelectedRange] = useState('1M');
+  const [currentShares, setCurrentShares] = useState(0);
+  const [currentAlloc, setCurrentAlloc] = useState(0);
+  const [currentMarketValue, setCurrentMarketValue] = useState(0.00);
+  const [isLoading, setIsLoading] = useState(true);
+
+  async function fetchHoldingInfo() {
+    try {
+      setIsLoading(true);
+      const response = await fetch('/api/overview'); 
+
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}`);
+      }
+
+      const overviewData = await response.json();
+      const holdingsData = overviewData?.HoldingsTable || [];
+
+      const holding = holdingsData.find(
+        (item) => item.symbol === data.symbol
+      );
+
+      setCurrentShares(holding ? holding.num_shares : 0);
+      setCurrentAlloc(holding ? Number(holding.allocation_pct).toFixed(2) : '0.00');
+      setCurrentMarketValue(holding ? Number(holding.market_value).toFixed(2) : '0.00');
+    } catch (err) {
+      console.error("Failed to fetch overview data:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+  async function sell(ticker, quantity, price) {
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/sell', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ticker: ticker,
+          quantity: Number(quantity),
+          price: Number(price),
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || `Server error: ${response.status}`);
+      }
+
+      console.log("Sell successful:", result);
+      return result;
+
+    } catch (err) {
+      console.error("Failed to process sell execution:", err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function buy(ticker, quantity, price) {
+    setIsLoading(true);
+
+    try {
+      const response = await fetch('/api/buy', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ticker: ticker,
+          quantity: Number(quantity),
+          price: Number(price),
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || `Server error: ${response.status}`);
+      }
+
+      // Success response: {"status": "success"}
+      console.log("Buy successful:", result);
+      return result;
+
+    } catch (err) {
+      console.error("Failed to process buy execution:", err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   const {
     symbol,
@@ -13,17 +106,12 @@ export function SecurityCard({ data }) {
     h_type,
     curr_price,
     previous_close,
-    pe_ratio = 32.4,
-    market_cap = '$3.05T',
-    high_52wk = 237.23,
-    low_52wk = 164.08,
-    volume = '48.2M',
-    performanceHistory = {
-      '1W': [{ label: 'Mon', p: 195.1 }, { label: 'Wed', p: 194.8 }, { label: 'Fri', p: 198.45 }],
-      '1M': [{ label: 'W1', p: 188.2 }, { label: 'W2', p: 191.5 }, { label: 'W3', p: 189.4 }, { label: 'W4', p: 198.45 }],
-      '1Y': [{ label: 'Q1', p: 165.0 }, { label: 'Q2', p: 178.5 }, { label: 'Q3', p: 185.2 }, { label: 'Q4', p: 198.45 }],
-      'YTD': [{ label: 'Jan', p: 172.1 }, { label: 'Mar', p: 181.0 }, { label: 'May', p: 189.3 }, { label: 'Jul', p: 198.45 }],
-    },
+    pe_ratio,
+    market_cap,
+    high_52wk,
+    low_52wk,
+    volume,
+    performanceHistory,
   } = data;
 
   const currentChartData = performanceHistory[selectedRange] || performanceHistory['1M'];
@@ -36,8 +124,15 @@ export function SecurityCard({ data }) {
 
   const handleBuy = (e) => {
     e.stopPropagation();
+    buy(symbol, quantity, curr_price)
     console.log(`Buy order: ${quantity} shares of ${symbol}`);
   };
+
+  const handleSell = (e) => {
+    e.stopPropagation();
+    sell(symbol, quantity, curr_price)
+    console.log(`Sell order: ${quantity} shares of ${symbol}`)
+  }
 
   const handleRangeChange = (e, range) => {
     e.stopPropagation();
@@ -47,7 +142,7 @@ export function SecurityCard({ data }) {
   return (
     <div
       className={`security-card ${isExpanded ? 'expanded' : ''}`}
-      onClick={() => setIsExpanded(!isExpanded)}
+      onClick={() => {setIsExpanded(!isExpanded); if (!isExpanded) fetchHoldingInfo() }}
     >
       <div className="card-top-row">
         <div>
@@ -100,7 +195,14 @@ export function SecurityCard({ data }) {
                 </linearGradient>
               </defs>
               <YAxis domain={['dataMin - 2', 'dataMax + 2']} hide />
-              <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94a3b8' }} />
+              <XAxis 
+                dataKey="label" 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fontSize: 11, fill: '#94a3b8' }} 
+                interval="preserveStartEnd"  
+                minTickGap={30}             
+              />
               <Tooltip
                 contentStyle={{
                   backgroundColor: '#1e293b',
@@ -152,6 +254,18 @@ export function SecurityCard({ data }) {
       {isExpanded && (
         <div className="buy-panel-container" onClick={(e) => e.stopPropagation()}>
           <div className="divider" />
+            <div className="holding-info">
+              <p><b>Personal Holding Information for {symbol}:</b></p>
+              {isLoading ? (
+                <p>Loading...</p>
+              ) : (
+                <>
+                  <p>Owned Shares: {currentShares}</p>
+                  <p>Market Value: ${currentMarketValue ? Number(currentMarketValue).toFixed(2) : 0.00}</p>
+                  <p>Allocation: {currentAlloc}%</p>
+                </>
+              )}
+            </div>
           <div className="buy-panel">
             <div className="buy-input-group">
               <label htmlFor={`qty-${symbol}`}>Qty:</label>
@@ -164,8 +278,11 @@ export function SecurityCard({ data }) {
                 className="buy-quantity-input"
               />
             </div>
+            <button className="buy-button" onClick={handleSell} disabled={quantity > currentShares}>
+              Sell (${(curr_price * quantity).toFixed(2)})
+            </button>
             <button className="buy-button" onClick={handleBuy}>
-              Buy {symbol} (${(curr_price * quantity).toFixed(2)})
+              Buy (${(curr_price * quantity).toFixed(2)})
             </button>
           </div>
         </div>

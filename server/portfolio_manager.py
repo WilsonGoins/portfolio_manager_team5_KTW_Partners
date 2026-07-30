@@ -46,7 +46,8 @@ class PortfolioManager:
         finalRes["HoldingsTable"] = enrichedHoldings
 
         # now get the allocations for the allocations graph
-        allocations = self.CalculateAllocationByType(enrichedHoldings)       # cash is passed in as a holding here
+        allocations = self.CalculateAllocationByType(
+            enrichedHoldings)       # cash is passed in as a holding here
         finalRes["Allocations"] = allocations
 
         # headline numbers for the portfolio value card
@@ -75,7 +76,7 @@ class PortfolioManager:
         finalRes = []
 
         for mover in self.finance_manager.get_top_movers(count):
-            price = mover["current_price"]
+            price = mover["curr_price"]
             previousClose = mover["previous_close"]
 
             # skip any quote we can't compute a move from rather than
@@ -84,7 +85,7 @@ class PortfolioManager:
                 continue
 
             finalRes.append({
-                "symbol": mover["ticker"],
+                "symbol": mover["symbol"],
                 "name": mover["name"],
                 "price": price,
                 "change": (price - previousClose) / previousClose * 100,
@@ -104,7 +105,8 @@ class PortfolioManager:
         for pv in sorted(dbRes, key=lambda pv: pv.p_date):
             history.append({
                 "date": pv.p_date.strftime("%Y-%m-%d"),
-                "value": float(pv.value),      # Decimal isn't JSON serializable
+                # Decimal isn't JSON serializable
+                "value": float(pv.value),
             })
 
         if todaysValue is not None:
@@ -178,10 +180,12 @@ class PortfolioManager:
             existing.quantity_shares += quantity
             self.db_manager.update_holding(existing)
 
-        self.db_manager.set_cash((cash - total_cost))       # set cash to new amount after purchase
+        # set cash to new amount after purchase
+        self.db_manager.set_cash((cash - total_cost))
 
         # record the buy in the transactions ledger
-        self.db_manager.add_transaction(Transaction(None, ticker, quantity, price, datetime.now(), "buy"))
+        self.db_manager.add_transaction(Transaction(
+            None, ticker, quantity, price, datetime.now(), "buy"))
 
     # Sell shares of a security.
     # Adds the proceeds to cash, reduces (or closes) the holding, and records the transaction.
@@ -198,7 +202,8 @@ class PortfolioManager:
 
         sellAmount = quantity * price       # get amount of money we make from sale
 
-        self.db_manager.set_cash((cash + sellAmount))       # add that to current cash
+        # add that to current cash
+        self.db_manager.set_cash((cash + sellAmount))
 
         existing.quantity_shares -= quantity
         if existing.quantity_shares == 0:
@@ -207,7 +212,8 @@ class PortfolioManager:
             self.db_manager.update_holding(existing)
 
         # record the sell in the transactions ledger
-        self.db_manager.add_transaction(Transaction(None, ticker, quantity, price, datetime.now(), "sell"))
+        self.db_manager.add_transaction(Transaction(
+            None, ticker, quantity, price, datetime.now(), "sell"))
 
     # Gets the current amount of cash for the user
     # Returns the amount of cash, not the cash holding
@@ -302,3 +308,6 @@ class PortfolioManager:
             })
 
         return allocations
+
+    def get_top_movers(self) -> list[dict]:
+        return self.finance_manager.get_top_movers()
