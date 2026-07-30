@@ -22,6 +22,7 @@ platformdirs==4.11.0
 protobuf==7.35.1
 psycopg==3.3.4
 psycopg-binary==3.3.4
+psycopg-pool==3.2.6
 pycparser==3.0
 Pygments==2.20.0
 python-dateutil==2.9.0.post0
