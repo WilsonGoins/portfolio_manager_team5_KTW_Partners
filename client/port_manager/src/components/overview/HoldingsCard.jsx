@@ -40,7 +40,7 @@ export function HoldingsCard({ data }) {
     {
       field: 'h_type',
       headerName: 'Type',
-      valueFormatter: (params) => params.value && params.value !== 'Cash' ? params.value : '--',
+      valueFormatter: (params) => params.value,
       minWidth: 90,
       flex: 1,
     },

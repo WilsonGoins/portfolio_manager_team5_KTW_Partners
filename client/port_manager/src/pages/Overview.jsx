@@ -3,8 +3,20 @@ import { PortfolioValueCard } from "../components/overview/PortfolioValueCard";
 import { WatchListCard } from "../components/overview/WatchListCard";
 import { AllocationCard } from "../components/overview/AllocationCard.jsx";
 import { HoldingsCard } from "../components/overview/HoldingsCard.jsx";
+import { OverviewSkeleton } from "../components/overview/OverviewSkeleton.jsx";
 import { useDataFreshness } from "../context/DataFreshness";
 import "./Overview.css";
+
+// The error state is the same shape in all four slots, so the cards differ only
+// by heading. Kept out of the grid's JSX to keep the three states readable.
+function ErrorCard({ className, title, message }) {
+  return (
+    <div className={`card ${className}`}>
+      <h3>{title}</h3>
+      <p style={{ color: '#e53e3e', padding: '16px' }}>Error loading data: {message}</p>
+    </div>
+  );
+}
 
 export function Overview() {
   const [holdingsData, setHoldingsData] = useState([]);
@@ -68,59 +80,21 @@ export function Overview() {
           DOM order is row-major: top-left, top-right, bottom-left, bottom-right. */}
       <div className="overview-main-content">
         {isLoading ? (
-          <div className="card portfolio-value-card">
-            <h3>Total Portfolio Value</h3>
-            <p style={{ color: '#718096', padding: '16px' }}>Loading portfolio value...</p>
-          </div>
+          <OverviewSkeleton />
         ) : error ? (
-          <div className="card portfolio-value-card">
-            <h3>Total Portfolio Value</h3>
-            <p style={{ color: '#e53e3e', padding: '16px' }}>Error loading data: {error}</p>
-          </div>
+          <>
+            <ErrorCard className="portfolio-value-card" title="Total Portfolio Value" message={error} />
+            <ErrorCard className="watchlist-card" title="Watchlist" message={error} />
+            <ErrorCard className="holdings-card" title="Holdings" message={error} />
+            <ErrorCard className="allocation-card" title="Allocation" message={error} />
+          </>
         ) : (
-          <PortfolioValueCard data={portfolioHistory} summary={portfolioSummary} />
-        )}
-
-        {isLoading ? (
-          <div className="card watchlist-card">
-            <h3>Watchlist</h3>
-            <p style={{ color: '#718096', padding: '16px' }}>Loading movers...</p>
-          </div>
-        ) : error ? (
-          <div className="card watchlist-card">
-            <h3>Watchlist</h3>
-            <p style={{ color: '#e53e3e', padding: '16px' }}>Error loading data: {error}</p>
-          </div>
-        ) : (
-          <WatchListCard data={topMovers} />
-        )}
-
-        {isLoading ? (
-          <div className="card holdings-card">
-            <h3>Holdings</h3>
-            <p style={{ color: '#718096', padding: '16px' }}>Loading holdings...</p>
-          </div>
-        ) : error ? (
-          <div className="card holdings-card">
-            <h3>Holdings</h3>
-            <p style={{ color: '#e53e3e', padding: '16px' }}>Error loading data: {error}</p>
-          </div>
-        ) : (
-          <HoldingsCard data={holdingsData} />
-        )}
-
-        {isLoading ? (
-          <div className="card allocation-card">
-            <h3>Allocation</h3>
-            <p style={{ color: '#718096', padding: '16px' }}>Loading allocation...</p>
-          </div>
-        ) : error ? (
-          <div className="card allocation-card">
-            <h3>Allocation</h3>
-            <p style={{ color: '#e53e3e', padding: '16px' }}>Error loading data: {error}</p>
-          </div>
-        ) : (
-          <AllocationCard data={allocationData} />
+          <>
+            <PortfolioValueCard data={portfolioHistory} summary={portfolioSummary} />
+            <WatchListCard data={topMovers} />
+            <HoldingsCard data={holdingsData} />
+            <AllocationCard data={allocationData} />
+          </>
         )}
       </div>
     </div>
