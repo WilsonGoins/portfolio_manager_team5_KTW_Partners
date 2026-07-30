@@ -1,0 +1,59 @@
+.transactions-card {
+  padding-bottom: 16px;
+}
+
+.transactions-grid-container {
+  width: 100%;
+}
+
+.transactions-grid-container.ag-theme-alpine {
+  --ag-background-color: transparent;
+  --ag-header-background-color: transparent;
+  --ag-border-color: transparent;
+  --ag-row-border-color: #e2e8f0;
+  --ag-header-column-separator-display: none;
+  --ag-grid-size: 4px;
+  --ag-font-size: 14px;
+  --ag-font-family: inherit;
+  font-family: inherit;
+}
+
+.transactions-grid-container .ag-header-cell-text {
+  color: #a0aec0;
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.transactions-grid-container .ag-cell {
+  display: flex;
+  align-items: center;
+  color: #4a5568;
+}
+
+.transactions-grid-container .ag-header-cell.ag-right-aligned-header .ag-header-cell-label {
+  justify-content: flex-end;
+}
+
+.transactions-grid-container .ag-row-hover {
+  background-color: #f7fafc !important;
+}
+
+.action-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.action-buy {
+  color: #10b981;
+  background-color: rgba(16, 185, 129, 0.1);
+}
+
+.action-sell {
+  color: #ef4444;
+  background-color: rgba(239, 68, 68, 0.1);
+}
