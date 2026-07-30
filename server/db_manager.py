@@ -60,6 +60,18 @@ class DBManager():
             self._enable_cache and self.logger.debug(
                 f"Cache[DELETE] Cleared cache for key: {key}")
 
+    def _empty_holding_cache(self, ticker_symbol: str):
+        """Clears both places a holding is cached: the full list, and its own
+        per-ticker entry.
+
+        Both have to go. Dropping only the list leaves get_holding handing back a
+        row that has since changed quantity or been deleted outright -- and a
+        deleted one still reads as "we hold this", so Buy would update a row that
+        is no longer there instead of re-adding it.
+        """
+        self.empty_cache(key="holdings")
+        self.empty_cache(key=f"holding:{ticker_symbol}")
+
     # -------------------- CASH --------------------
 
     def get_cash(self) -> float | None:
@@ -228,7 +240,7 @@ class DBManager():
         with self._cursor() as cur:
             cur.execute("INSERT INTO holdings (ticker, name, h_type, quantity_shares) VALUES (%s, %s, %s, %s)",
                         [holding.ticker, holding.name, holding.h_type, holding.quantity_shares])
-            self.empty_cache()
+            self._empty_holding_cache(holding.ticker)
 
         return self.get_holdings()
 
@@ -236,7 +248,7 @@ class DBManager():
         with self._cursor() as cur:
             cur.execute("INSERT INTO transactions (ticker, quantity, price, trans_date, action_taken) VALUES (%s, %s, %s, %s, %s)",
                         [transaction.ticker, transaction.quantity, transaction.price, str(transaction.trans_date), transaction.action_taken])
-            self.empty_cache()
+            self.empty_cache(key="transactions")
 
         return self.get_transactions()
 
@@ -246,7 +258,7 @@ class DBManager():
         with self._cursor() as cur:
             cur.execute("UPDATE holdings SET name=%s, h_type=%s, quantity_shares=%s WHERE ticker=%s",
                         [holding.name, holding.h_type, holding.quantity_shares, holding.ticker])
-            self.empty_cache(key="holdings")
+            self._empty_holding_cache(holding.ticker)
 
         return self.get_holdings()
 
@@ -264,7 +276,7 @@ class DBManager():
         with self._cursor() as cur:
             cur.execute("DELETE FROM holdings WHERE ticker = %s",
                         [holding.ticker])
-            self.empty_cache(key="holdings")
+            self._empty_holding_cache(holding.ticker)
 
         return self.get_holdings()
 
