@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry } from 'ag-grid-community';
 import { ClientSideRowModelModule } from 'ag-grid-community';
@@ -10,6 +11,9 @@ import './HoldingsCard.css';
 ModuleRegistry.registerModules([ClientSideRowModelModule]);
 
 export function HoldingsCard({ data }) {
+
+  const navigate = useNavigate();
+
   const ChangeCellRenderer = (params) => {
     const val = params.value;
     if (val === null || val === undefined || val === "--") return "--";
@@ -20,6 +24,15 @@ export function HoldingsCard({ data }) {
         {formatted}
       </span>
     );
+  };
+
+  const handleRowClick = (event) => {
+    if(event.data && event.data.symbol) {
+      let symbol = event.data.symbol;
+      if(symbol !== "--") {
+        navigate(`/details/${symbol}`);
+      }
+    }
   };
 
   const columnDefs = useMemo(() => [
@@ -105,6 +118,7 @@ export function HoldingsCard({ data }) {
           rowHeight={44}
           headerHeight={38}
           suppressCellFocus={true}
+          onRowClicked={handleRowClick}
         />
       </div>
     </div>

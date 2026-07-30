@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Search } from './Search';
 import { SecurityCard } from './SecurityCard';
 import "./ExploreSecurities.css";
@@ -10,6 +11,7 @@ export function ExploreSecurities() {
   const [error, setError] = useState(null);
   const [showingQueryResults, setShowingQueryResults] = useState(false)
   const [searchText, setSearchText] = useState('');
+  const navigate = useNavigate();
 
   const fetchTopMovers = useCallback(async (isInitial = false) => {
     try {
@@ -63,7 +65,7 @@ export function ExploreSecurities() {
       return;
     }
 
-    setSearchText(query);
+    setSearchText(query.toUpperCase());
 
     setLoading(true);
     try {
@@ -90,6 +92,10 @@ export function ExploreSecurities() {
     }
   };
 
+  const handleDetails = (symbol) => {
+    navigate(`/details/${symbol}`);
+  };
+
   return (
     <div className="explore-securities-container">
       <Search
@@ -112,7 +118,7 @@ export function ExploreSecurities() {
           <p className="no-results">No securities found.</p>
         ) : (
           securities.map((security) => (
-            <SecurityCard key={security.symbol} data={security} />
+            <SecurityCard key={security.symbol} data={security} onClick={() => handleDetails(security.symbol)}/>
           ))
         )}
       </div>
