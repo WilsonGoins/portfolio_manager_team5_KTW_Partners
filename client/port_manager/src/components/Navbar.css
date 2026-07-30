@@ -14,6 +14,14 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.navbar-brand:hover {
+  opacity: 0.75;
 }
 
 .brand-icon {
@@ -56,4 +64,40 @@
 .navbar-links a.active {
   color: #0f172a;
   font-weight: 600;
+}
+
+.navbar-freshness {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-left: 2rem;
+}
+
+.freshness-label {
+  font-size: 0.78rem;
+  color: #a0aec0;
+  white-space: nowrap;
+}
+
+.freshness-refresh {
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #0d7682;
+  background-color: transparent;
+  border: 1px solid #cbd5e0;
+  border-radius: 6px;
+  padding: 0.25rem 0.6rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.freshness-refresh:hover:not(:disabled) {
+  background-color: #f0fdfa;
+  border-color: #0d7682;
+}
+
+.freshness-refresh:disabled {
+  color: #a0aec0;
+  cursor: default;
 }

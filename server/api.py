@@ -27,6 +27,8 @@ def hello_world():
 
 @app.route("/api/overview")
 def overview():
+    """Returns everything the Overview page renders: HoldingsTable, Allocations,
+    PortfolioSummary, PortfolioHistory, and TopMovers."""
     try:
         return jsonify(portfolio_manager.GetOverviewData())
     except Exception as e:

@@ -3,113 +3,99 @@ import { PortfolioValueCard } from "../components/overview/PortfolioValueCard";
 import { WatchListCard } from "../components/overview/WatchListCard";
 import { AllocationCard } from "../components/overview/AllocationCard.jsx";
 import { HoldingsCard } from "../components/overview/HoldingsCard.jsx";
+import { OverviewSkeleton } from "../components/overview/OverviewSkeleton.jsx";
+import { useDataFreshness } from "../context/DataFreshness";
 import "./Overview.css";
 
-const portfolioValueData = {
-  '1D': [
-    { date: '9:30 AM', value: 478000 },
-    { date: '11:00 AM', value: 479200 },
-    { date: '1:00 PM', value: 480500 },
-    { date: '3:00 PM', value: 481000 },
-    { date: '4:00 PM', value: 482930.18 },
-  ],
-  '1W': [
-    { date: 'Mon', value: 468000 },
-    { date: 'Tue', value: 471000 },
-    { date: 'Wed', value: 469500 },
-    { date: 'Thu', value: 477000 },
-    { date: 'Fri', value: 482930.18 },
-  ],
-  '1M': [
-    { date: 'Week 1', value: 450000 },
-    { date: 'Week 2', value: 462000 },
-    { date: 'Week 3', value: 458000 },
-    { date: 'Week 4', value: 482930.18 },
-  ],
-  'YTD': [
-    { date: 'Jan', value: 410000 },
-    { date: 'Mar', value: 435000 },
-    { date: 'May', value: 420000 },
-    { date: 'Jul', value: 482930.18 },
-  ],
-  '1Y': [
-    { date: 'Q1', value: 390000 },
-    { date: 'Q2', value: 420000 },
-    { date: 'Q3', value: 445000 },
-    { date: 'Q4', value: 482930.18 },
-  ],
-};
-
-const watchlistData = [
-  { symbol: 'AMD', price: 142.30, change: 2.10 },
-  { symbol: 'NFLX', price: 645.80, change: -0.55 },
-  { symbol: 'META', price: 498.20, change: 1.35 },
-  { symbol: 'BA', price: 178.90, change: -2.20 },
-  { symbol: 'JPM', price: 205.60, change: 0.48 },
-];
+// The error state is the same shape in all four slots, so the cards differ only
+// by heading. Kept out of the grid's JSX to keep the three states readable.
+function ErrorCard({ className, title, message }) {
+  return (
+    <div className={`card ${className}`}>
+      <h3>{title}</h3>
+      <p style={{ color: '#e53e3e', padding: '16px' }}>Error loading data: {message}</p>
+    </div>
+  );
+}
 
 export function Overview() {
   const [holdingsData, setHoldingsData] = useState([]);
-  const [allocationData, setAllocationData] = useState({});
+  const [allocationData, setAllocationData] = useState([]);
+  const [portfolioHistory, setPortfolioHistory] = useState([]);
+  const [portfolioSummary, setPortfolioSummary] = useState(null);
+  const [topMovers, setTopMovers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const { refreshToken, setLastUpdated, setIsRefreshing } = useDataFreshness();
 
   useEffect(() => {
+    let cancelled = false;
+
     async function fetchOverviewData() {
+      // Only the very first load blanks the cards out. A refresh from the navbar
+      // leaves the current numbers up until the new ones arrive.
+      if (refreshToken === 0) setIsLoading(true);
+      setIsRefreshing(true);
+
       try {
-        setIsLoading(true);
-        const response = await fetch('/api/overview'); 
-        
+        const response = await fetch('/api/overview');
+
         if (!response.ok) {
           throw new Error(`Server returned ${response.status}`);
         }
 
         const overviewData = await response.json();
-        
+        if (cancelled) return;
+
         setHoldingsData(overviewData.HoldingsTable || []);
-        setAllocationData(overviewData.AllocationsDict || {});
+        setAllocationData(overviewData.Allocations || []);
+        setPortfolioHistory(overviewData.PortfolioHistory || []);
+        setPortfolioSummary(overviewData.PortfolioSummary || null);
+        setTopMovers(overviewData.TopMovers || []);
+        setLastUpdated(overviewData.LastUpdated || new Date().toISOString());
+        setError(null);
       } catch (err) {
+        if (cancelled) return;
         console.error("Failed to fetch overview data:", err);
         setError(err.message);
       } finally {
-        setIsLoading(false);
+        if (!cancelled) {
+          setIsLoading(false);
+          setIsRefreshing(false);
+        }
       }
     }
 
     fetchOverviewData();
-  }, []);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshToken, setLastUpdated, setIsRefreshing]);
 
   return (
     <div className="overview-page">
+      {/* One 2x2 grid rather than two independent columns, so each row's cards
+          share a top edge no matter how tall the row above them grows.
+          DOM order is row-major: top-left, top-right, bottom-left, bottom-right. */}
       <div className="overview-main-content">
-        <div className="overview-column left-column">
-          <PortfolioValueCard data={portfolioValueData} />
-          {isLoading ? (
-            <div className="card holdings-card">
-              <h3>Holdings</h3>
-              <p style={{ color: '#718096', padding: '16px' }}>Loading holdings...</p>
-            </div>
-          ) : error ? (
-            <div className="card holdings-card">
-              <h3>Holdings</h3>
-              <p style={{ color: '#e53e3e', padding: '16px' }}>Error loading data: {error}</p>
-            </div>
-          ) : (
+        {isLoading ? (
+          <OverviewSkeleton />
+        ) : error ? (
+          <>
+            <ErrorCard className="portfolio-value-card" title="Total Portfolio Value" message={error} />
+            <ErrorCard className="watchlist-card" title="Watchlist" message={error} />
+            <ErrorCard className="holdings-card" title="Holdings" message={error} />
+            <ErrorCard className="allocation-card" title="Allocation" message={error} />
+          </>
+        ) : (
+          <>
+            <PortfolioValueCard data={portfolioHistory} summary={portfolioSummary} />
+            <WatchListCard data={topMovers} />
             <HoldingsCard data={holdingsData} />
-          )}
-        </div>
-
-        <div className="overview-column right-column">
-          <WatchListCard data={watchlistData} />
-          {isLoading ? (
-            <div className="card allocation-card">
-              <h3>Allocation</h3>
-              <p style={{ color: '#718096', padding: '16px' }}>Loading allocation...</p>
-            </div>
-          ) : (
             <AllocationCard data={allocationData} />
-          )}
-        </div>
+          </>
+        )}
       </div>
     </div>
   );

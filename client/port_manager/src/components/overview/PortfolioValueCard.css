@@ -13,17 +13,42 @@
 
 .portfolio-value-change {
   font-size: 0.875rem;
-  background-color: #ecfdf5;
   padding: 4px 8px;
   border-radius: 6px;
   display: inline-block;
   margin-top: 8px;
 }
 
+.portfolio-value-change.positive {
+  background-color: #ecfdf5;
+}
+
+.portfolio-value-change.negative {
+  background-color: #fef2f2;
+}
+
+/* axis ticks are a column of numbers, so hold the digits to one width */
+.portfolio-value-card .recharts-cartesian-axis-tick-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-empty-message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  margin: 0;
+  color: #718096;
+  font-size: 0.875rem;
+}
+
+/* Sits below the headline figures and left-aligned, rather than in the card's
+   top-right corner where it crowded the card in the next column. */
 .timeframe-selector {
   display: flex;
+  justify-content: flex-start;
   gap: 8px;
-  margin-top: 4px;
+  margin-top: 16px;
 }
 
 .timeframe-selector button {

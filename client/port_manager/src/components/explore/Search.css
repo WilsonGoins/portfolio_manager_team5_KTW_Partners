@@ -1,0 +1,118 @@
+.search-container {
+  position: relative;
+  width: 100%;
+  max-width: 540px;
+  margin: 0 auto;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.search-form {
+  display: flex;
+  align-items: center;
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+
+.search-form:focus-within {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+/* Search Icon */
+.search-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: 16px;
+  color: #94a3b8;
+}
+
+.search-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.search-form:focus-within .search-icon-wrapper {
+  color: #2563eb;
+}
+
+/* Input Field */
+.search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  padding: 12px 14px;
+  font-size: 0.95rem;
+  color: #0f172a;
+  background: transparent;
+}
+
+.search-input::placeholder {
+  color: #94a3b8;
+}
+
+.search-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 8px;
+}
+
+.clear-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 50%;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.clear-btn:hover {
+  color: #475569;
+  background-color: #f1f5f9;
+}
+
+/* Submit Button */
+.search-submit-btn {
+  background-color: #2563eb;
+  color: #ffffff;
+  border: none;
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 8px 16px;
+  margin: 4px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.search-submit-btn:hover {
+  background-color: #1d4ed8;
+}
+
+.search-submit-btn:disabled {
+  background-color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #e2e8f0;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  margin-right: 6px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

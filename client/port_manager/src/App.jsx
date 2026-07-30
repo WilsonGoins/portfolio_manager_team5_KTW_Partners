@@ -2,7 +2,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { Overview } from "./pages/Overview";
-import { Holdings } from "./pages/Holdings";
 import { Explore } from "./pages/Explore";
 import { Transactions } from "./pages/Transactions";
 
@@ -12,7 +11,6 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<Overview />} />
-          <Route path="holdings" element={<Holdings />} />
           <Route path="explore" element={<Explore />} />
           <Route path="transactions" element={<Transactions />} />
 

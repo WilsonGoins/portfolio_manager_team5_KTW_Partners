@@ -1,25 +1,48 @@
 import React, { useMemo } from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import './AllocationCard.css';
 
 const COLORS = ['#008080', '#56a3a3', '#8ac2c2', '#aedbdb', '#6f42c1'];
 
+const currency = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+function AllocationTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null;
+
+  const slice = payload[0].payload;
+  return (
+    <div className="allocation-tooltip">
+      <div className="allocation-tooltip-type">
+        <span className="legend-icon" style={{ backgroundColor: slice.fill }} />
+        {slice.h_type}
+      </div>
+      <div className="allocation-tooltip-value">{currency.format(slice.market_value)}</div>
+      <div className="allocation-tooltip-pct">{slice.allocation_pct.toFixed(1)}% of portfolio</div>
+    </div>
+  );
+}
+
 export function AllocationCard({ data }) {
-  const chartData = useMemo(() => {
-    if (!data) return [];
-
-
-    return Object.entries(data).map(([name, value]) => ({
-      name,
-      value: typeof value === 'number' ? Number(value.toFixed(1)) : 0,
-    }));
-  }, [data]);
+  // colour is keyed to the slice's position in the type-sorted list the API sends,
+  // so a type keeps its colour even as its share of the portfolio moves around
+  const chartData = useMemo(
+    () => (data ?? []).map((slice, index) => ({
+      ...slice,
+      fill: COLORS[index % COLORS.length],
+    })),
+    [data],
+  );
 
   if (!chartData.length) {
     return (
       <div className="card allocation-card">
         <h3>Allocation</h3>
-        <p style={{ color: '#718096', padding: '16px' }}>No allocation data available.</p>
+        <p className="allocation-empty-message">No allocation data available.</p>
       </div>
     );
   }
@@ -36,35 +59,37 @@ export function AllocationCard({ data }) {
               cy="50%"
               innerRadius={60}
               outerRadius={90}
-              fill="#8884d8"
               paddingAngle={0}
-              dataKey="value"
+              dataKey="market_value"
+              nameKey="h_type"
               startAngle={90}
               endAngle={450}
             >
-              {chartData.map((entry, index) => (
-                <Cell 
-                  key={`cell-${entry.name}-${index}`} 
-                  fill={COLORS[index % COLORS.length]} 
-                  stroke="none" 
-                />
+              {chartData.map((entry) => (
+                <Cell key={entry.h_type} fill={entry.fill} stroke="none" />
               ))}
             </Pie>
+            <Tooltip content={<AllocationTooltip />} />
           </PieChart>
         </ResponsiveContainer>
       </div>
 
-      <div className="allocation-legend">
-        {chartData.map((entry, index) => (
-          <div key={entry.name} className="legend-item">
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <span 
-                className="legend-icon" 
-                style={{ backgroundColor: COLORS[index % COLORS.length] }} 
-              />
-              <span className="legend-label">{entry.name}</span>
+      <div className="allocation-table">
+        <div className="allocation-header">
+          <span>Type</span>
+          <span>Value</span>
+        </div>
+
+        {chartData.map((entry) => (
+          <div key={entry.h_type} className="allocation-row">
+            <div className="allocation-identity">
+              <span className="legend-icon" style={{ backgroundColor: entry.fill }} />
+              <span className="allocation-type">{entry.h_type}</span>
             </div>
-            <span className="legend-value">{entry.value}%</span>
+            <div className="allocation-figures">
+              <span className="allocation-value">{currency.format(entry.market_value)}</span>
+              <span className="allocation-pct">{entry.allocation_pct.toFixed(1)}%</span>
+            </div>
           </div>
         ))}
       </div>
