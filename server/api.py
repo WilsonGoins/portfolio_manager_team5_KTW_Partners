@@ -64,6 +64,22 @@ def get_top_movers():
         return jsonify({"error": "Failed to fetch watchlist data"}), 500
 
 
+@app.route("/api/search")
+def search():
+    query = request.args.get("q", "").strip()
+    app.logger.info(f"Searching Yahoo for {query}.")
+    if not query:
+        return jsonify([])
+
+    try:
+        results = finance_manager.search_securities(query)
+        return jsonify(results)
+    except Exception as e:
+        app.logger.error(f"Failed to search securities for '{
+            query}': {e}", exc_info=True)
+        return jsonify({"error": "Failed to search securities"}), 500
+
+
 @app.route("/api/buy", methods=["POST"])
 def buy():
     data = request.get_json()

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Search } from './Search';
 import { SecurityCard } from './SecurityCard';
 import "./ExploreSecurities.css";
@@ -8,65 +8,85 @@ export function ExploreSecurities() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [showingQueryResults, setShowingQueryResults] = useState(false)
+  const [searchText, setSearchText] = useState('');
+
+  const fetchTopMovers = useCallback(async (isInitial = false) => {
+    try {
+      if (isInitial) setLoading(true);
+
+      const response = await fetch('/api/top-movers');
+
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}`);
+      }
+
+      const watchlistData = await response.json();
+      setSecurities(watchlistData);
+      setError(null);
+    } catch (err) {
+      console.error("Failed to fetch top movers:", err);
+      setError(err.message);
+    } finally {
+      if (isInitial) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if(!loading) {
+      setShowingQueryResults(searchQuery.trim() !== '');
+      setSearchText(searchQuery);
+    }
+  }, [loading])
 
   useEffect(() => {
     let isMounted = true;
 
-    async function fetchSecurities(isInitial = false) {
-      if (searchQuery.trim() !== '') return;
+    if (searchQuery.trim() === '') {
+      fetchTopMovers(true);
 
-      try {
-        if (isInitial) setLoading(true);
+      const intervalId = setInterval(() => {
+        if (isMounted) fetchTopMovers(false);
+      }, 60 * 1000);
 
-        const response = await fetch('/api/top-movers');
-
-        if (!response.ok) {
-          throw new Error(`Server returned ${response.status}`);
-        }
-
-        const watchlistData = await response.json();
-
-        if (isMounted) {
-          setSecurities(watchlistData);
-          setError(null);
-        }
-      } catch (err) {
-        console.error("Failed to fetch top movers:", err);
-        if (isMounted) setError(err.message);
-      } finally {
-        if (isMounted && isInitial) setLoading(false);
-      }
+      return () => {
+        isMounted = false;
+        clearInterval(intervalId);
+      };
     }
-
-    fetchSecurities(true);
-
-    const intervalId = setInterval(() => {
-      fetchSecurities(false);
-    }, 60 * 1000);
-
-    return () => {
-      isMounted = false;
-      clearInterval(intervalId);
-    };
-  }, [searchQuery]);
+  }, [searchQuery, fetchTopMovers]);
 
   const handleBackendSearch = async (query) => {
-    if (!query.trim()) return;
+    if (!query.trim()) {
+      fetchTopMovers(true);
+      setShowingQueryResults(false);
+      return;
+    }
+
+    setSearchText(query);
 
     setLoading(true);
     try {
-      const response = await fetch(`/api/securities/search?q=${encodeURIComponent(query)}`);
-      
+      const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+
       if (!response.ok) throw new Error(`Search failed: ${response.status}`);
-      
+
       const data = await response.json();
-      setSecurities(data);
+      setSecurities(Array.isArray(data) ? data : []);
       setError(null);
     } catch (err) {
       console.error('Failed to search securities:', err);
+
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleQueryChange = (newQuery) => {
+    setSearchQuery(newQuery);
+    if (newQuery.trim() === '') {
+      fetchTopMovers(true);
     }
   };
 
@@ -74,12 +94,18 @@ export function ExploreSecurities() {
     <div className="explore-securities-container">
       <Search
         query={searchQuery}
-        onQueryChange={setSearchQuery}
+        onQueryChange={handleQueryChange}
         onSearch={handleBackendSearch}
         isLoading={loading}
       />
 
       {error && <div className="error-banner">{error}</div>}
+
+      {showingQueryResults ? (
+      <h3>Search results for {searchText}</h3>
+      ) : (
+      <h3>Top 5 Movers Of The Day...</h3>
+      )}
 
       <div className="securities">
         {!loading && securities.length === 0 ? (
