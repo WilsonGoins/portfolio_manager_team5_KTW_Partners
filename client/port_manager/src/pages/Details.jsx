@@ -184,7 +184,6 @@ export function Details() {
             </div>
           </div>
 
-          {/* Key Stats */}
           <div className="card stats-card">
             <h3>KEY STATS</h3>
             <div className="stats-grid">
@@ -207,7 +206,6 @@ export function Details() {
             </div>
           </div>
 
-          {/* About */}
           {description && (
             <div className="card about-card">
               <h3>ABOUT</h3>
@@ -216,9 +214,7 @@ export function Details() {
           )}
         </div>
 
-        {/* Right Column: Holdings & Trade Ticket */}
         <div className="side-panel">
-          {/* Position Card */}
           <div className="card position-card">
             <h3>YOUR POSITION</h3>
             <div className="position-details">
@@ -237,7 +233,6 @@ export function Details() {
             </div>
           </div>
 
-          {/* Trade Ticket */}
           <div className="card trade-card">
             <h3>TRADE {symbol}</h3>
 
