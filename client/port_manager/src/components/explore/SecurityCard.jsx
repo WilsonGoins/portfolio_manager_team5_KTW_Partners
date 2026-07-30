@@ -3,7 +3,6 @@ import { ResponsiveContainer, AreaChart, Area, Tooltip, YAxis, XAxis } from 'rec
 import './SecurityCard.css';
 
 export function SecurityCard({ data, onClick }) {
-  const [isExpanded, setIsExpanded] = useState(false); // WE CAN DELETE THIS NOW
   const [quantity, setQuantity] = useState(1);
   const [selectedRange, setSelectedRange] = useState('1M');
   const [currentShares, setCurrentShares] = useState(0);
@@ -141,7 +140,7 @@ export function SecurityCard({ data, onClick }) {
 
   return (
     <div
-      className={`security-card ${isExpanded ? 'expanded' : ''}`}
+      className={`security-card`}
       onClick={onClick}
     >
       <div className="card-top-row">
@@ -248,45 +247,8 @@ export function SecurityCard({ data, onClick }) {
       </div>
 
       <div className="expand-prompt">
-        {isExpanded ? 'Click to hide buy options' : 'Click card to buy'}
+        Click card to buy
       </div>
-
-      {isExpanded && (
-        <div className="buy-panel-container" onClick={(e) => e.stopPropagation()}>
-          <div className="divider" />
-            <div className="holding-info">
-              <p><b>Personal Holding Information for {symbol}:</b></p>
-              {isLoading ? (
-                <p>Loading...</p>
-              ) : (
-                <>
-                  <p>Owned Shares: {currentShares}</p>
-                  <p>Market Value: ${currentMarketValue ? Number(currentMarketValue).toFixed(2) : 0.00}</p>
-                  <p>Allocation: {currentAlloc}%</p>
-                </>
-              )}
-            </div>
-          <div className="buy-panel">
-            <div className="buy-input-group">
-              <label htmlFor={`qty-${symbol}`}>Qty:</label>
-              <input
-                id={`qty-${symbol}`}
-                type="number"
-                min="1"
-                value={quantity}
-                onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                className="buy-quantity-input"
-              />
-            </div>
-            <button className="buy-button" onClick={handleSell} disabled={quantity > currentShares}>
-              Sell (${(curr_price * quantity).toFixed(2)})
-            </button>
-            <button className="buy-button" onClick={handleBuy}>
-              Buy (${(curr_price * quantity).toFixed(2)})
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
