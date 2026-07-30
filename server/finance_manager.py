@@ -1,5 +1,11 @@
 import yfinance as yf
 import logging
+from concurrent.futures import ThreadPoolExecutor
+
+# Yahoo answers one ticker per request, so the only way to speed up a batch is to
+# have several in flight at once. Capped so a large portfolio doesn't open a
+# connection per holding and get us rate limited.
+_MAX_QUOTE_WORKERS = 8
 
 
 class FinanceManager:
@@ -25,6 +31,43 @@ class FinanceManager:
         except Exception as e:
             self.logger.error(f"Failed to fetch stock by ticker '{ticker}': {e}", exc_info=True)
             return None
+
+    def get_stocks_by_tickers(self, tickers: list[str]) -> dict:
+        """
+        Method 1b: Query for several stocks at once.
+        Same per-stock result as get_stock_by_ticker, but the requests are run
+        concurrently instead of back to back, so the wait is roughly one round
+        trip rather than one per ticker.
+        Returns: {ticker: stock dict}, keyed by the ticker as it was passed in.
+                 A ticker that couldn't be fetched maps to None, exactly as
+                 get_stock_by_ticker would return for it on its own.
+        """
+        if not tickers:
+            return {}
+
+        # dict comprehension dedupes, so a ticker listed twice is only fetched once
+        unique_tickers = list(dict.fromkeys(tickers))
+        if len(unique_tickers) == 1:
+            ticker = unique_tickers[0]
+            return {ticker: self.get_stock_by_ticker(ticker)}
+
+        results = {}
+        with ThreadPoolExecutor(
+                max_workers=min(len(unique_tickers), _MAX_QUOTE_WORKERS)) as executor:
+            futures = {ticker: executor.submit(self.get_stock_by_ticker, ticker)
+                       for ticker in unique_tickers}
+
+            for ticker, future in futures.items():
+                try:
+                    results[ticker] = future.result()
+                except Exception as e:
+                    # get_stock_by_ticker swallows its own failures, so this is
+                    # something unexpected -- keep the other tickers' results
+                    self.logger.error(
+                        f"Failed to fetch stock by ticker '{ticker}': {e}", exc_info=True)
+                    results[ticker] = None
+
+        return results
 
     def get_stock_by_name(self, name: str) -> dict:
         """

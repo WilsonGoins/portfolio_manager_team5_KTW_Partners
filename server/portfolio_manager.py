@@ -27,9 +27,15 @@ class PortfolioManager:
         # this is a list of Holding objects, each with {ticker, name, h_type, quantity_shares, ...}
         dbHoldingsRes = self.db_manager.get_holdings()
 
+        # one batched lookup rather than a call per holding inside the loop below:
+        # those calls used to run back to back, so the page waited on the sum of
+        # every round trip. Batched, they overlap and cost about one round trip total.
+        quotes = self.finance_manager.get_stocks_by_tickers(
+            [holding.ticker for holding in dbHoldingsRes])
+
         holdingsWithPrice = []
         for holding in dbHoldingsRes:      # this will iterate through the list we got and add current price for each of them
-            yahooRes = self.finance_manager.get_stock_by_ticker(holding.ticker)
+            yahooRes = quotes.get(holding.ticker)
             if (yahooRes is None):
                 raise ValueError("Holding must be a valid security.")
             holdingsWithPrice.append({"symbol": holding.ticker, "name": holding.name, "h_type": holding.h_type,
