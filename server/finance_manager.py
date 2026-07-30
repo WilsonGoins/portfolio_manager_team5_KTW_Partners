@@ -122,8 +122,16 @@ class FinanceManager:
                               ticker}': {e}", exc_info=True)
             return None
 
-        # only successes are cached, so a blip doesn't stick around for the whole TTL
-        self._cache.set(cache_key, quote)
+        # Not raising isn't the same as succeeding: a throttled Yahoo returns a
+        # thin payload that parses cleanly with its numbers missing. Caching one
+        # of those would serve the same unusable quote for the whole TTL, so it
+        # is returned but not stored and the next request fetches again.
+        if quote["current_price"] is not None and quote["previous_close"] is not None:
+            self._cache.set(cache_key, quote)
+        else:
+            self.logger.warning(
+                f"Incomplete quote for '{ticker}', not caching: {quote}")
+
         return quote
 
     def get_stocks_by_tickers(self, tickers: list[str]) -> dict:
