@@ -7,8 +7,6 @@ import { OverviewSkeleton } from "../components/overview/OverviewSkeleton.jsx";
 import { useDataFreshness } from "../context/DataFreshness";
 import "./Overview.css";
 
-// The error state is the same shape in all four slots, so the cards differ only
-// by heading. Kept out of the grid's JSX to keep the three states readable.
 function ErrorCard({ className, title, message }) {
   return (
     <div className={`card ${className}`}>

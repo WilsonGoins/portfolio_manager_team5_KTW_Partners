@@ -1,5 +1,6 @@
 import yfinance as yf
 import logging
+import math
 from concurrent.futures import ThreadPoolExecutor
 
 # Yahoo answers one ticker per request, so the only way to speed up a batch is to
@@ -201,12 +202,19 @@ class FinanceManager:
             if hist.empty:
                 return {"1W": [], "1M": [], "1Y": [], "YTD": []}
 
+            hist = hist.dropna(subset=["Close"])
+
             def format_rows(df):
-                return [
-                    {"label": idx.strftime("%b %d"), "p": round(
-                        float(row["Close"]), 2)}
-                    for idx, row in df.iterrows()
-                ]
+                rows = []
+                for idx, row in df.iterrows():
+                    close_val = row["Close"]
+                    if math.isnan(close_val):
+                        continue
+                    rows.append({
+                        "label": idx.strftime("%b %d"),
+                        "p": round(float(close_val), 2)
+                    })
+                return rows
 
             now = hist.index[-1]
             hist_1w = hist.tail(5)
@@ -221,4 +229,3 @@ class FinanceManager:
             }
         except Exception as e:
             self.logger.error(f"Error building chart history: {e}")
-            return {"1W": [], "1M": [], "1Y": [], "YTD": []}

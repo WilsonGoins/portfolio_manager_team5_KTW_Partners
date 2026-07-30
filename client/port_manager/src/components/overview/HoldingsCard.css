@@ -6,6 +6,14 @@
   width: 100%;
 }
 
+.holdings-grid-container .ag-row {
+  cursor: pointer;
+}
+
+.holdings-grid-container .ag-row:hover {
+  background-color: #f8fafc !important;
+}
+
 .ag-theme-alpine {
   --ag-background-color: transparent;
   --ag-header-background-color: transparent;
@@ -47,3 +55,4 @@
   color: #ef4444;
   font-weight: 500;
 }
+

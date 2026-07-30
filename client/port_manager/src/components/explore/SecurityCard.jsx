@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { ResponsiveContainer, AreaChart, Area, Tooltip, YAxis, XAxis } from 'recharts';
 import './SecurityCard.css';
 
-export function SecurityCard({ data }) {
-  const [isExpanded, setIsExpanded] = useState(false);
+export function SecurityCard({ data, onClick }) {
+  const [isExpanded, setIsExpanded] = useState(false); // WE CAN DELETE THIS NOW
   const [quantity, setQuantity] = useState(1);
   const [selectedRange, setSelectedRange] = useState('1M');
   const [currentShares, setCurrentShares] = useState(0);
@@ -142,7 +142,7 @@ export function SecurityCard({ data }) {
   return (
     <div
       className={`security-card ${isExpanded ? 'expanded' : ''}`}
-      onClick={() => {setIsExpanded(!isExpanded); if (!isExpanded) fetchHoldingInfo() }}
+      onClick={onClick}
     >
       <div className="card-top-row">
         <div>
