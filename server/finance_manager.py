@@ -131,19 +131,26 @@ class FinanceManager:
             return []
 
     def search_securities(self, query: str, max_results: int = 5) -> list[dict]:
-        """Searches for securities matching a query and returns rich SecurityCard-shaped data."""
         query = query.strip()
         if not query:
-            self.logger.warning("Empty securities search query received")
             return []
 
         try:
             results = yf.Search(query, max_results=max_results).quotes
+            symbols = [r.get("symbol") for r in results if r.get("symbol")]
+
+            if not symbols:
+                return []
+
             securities = []
-            for r in results:
-                enriched = self._get_security_details(r.get("symbol"))
-                if enriched is not None:
-                    securities.append(enriched)
+            with ThreadPoolExecutor(max_workers=min(len(symbols), _MAX_QUOTE_WORKERS)) as executor:
+                futures = [executor.submit(
+                    self._get_security_details, sym) for sym in symbols]
+                for future in futures:
+                    res = future.result()
+                    if res is not None:
+                        securities.append(res)
+
             return securities
         except Exception as e:
             self.logger.error(f"Failed to search securities for '{
@@ -188,17 +195,30 @@ class FinanceManager:
             return None
 
     def _get_performance_history(self, stock: yf.Ticker) -> dict:
-        """Builds the 1W/1M/1Y/YTD chart data SecurityCard expects."""
-        ranges = {"1W": "5d", "1M": "1mo", "1Y": "1y", "YTD": "ytd"}
-        history = {}
-        for label, period in ranges.items():
-            try:
-                hist = stock.history(period=period)
-                history[label] = [
-                    {"label": date.strftime("%b %d"), "p": round(
+        """Builds chart data by pulling 1 year of history ONCE and slicing in memory."""
+        try:
+            hist = stock.history(period="1y")
+            if hist.empty:
+                return {"1W": [], "1M": [], "1Y": [], "YTD": []}
+
+            def format_rows(df):
+                return [
+                    {"label": idx.strftime("%b %d"), "p": round(
                         float(row["Close"]), 2)}
-                    for date, row in hist.iterrows()
+                    for idx, row in df.iterrows()
                 ]
-            except Exception:
-                history[label] = []
-        return history
+
+            now = hist.index[-1]
+            hist_1w = hist.tail(5)
+            hist_1m = hist.tail(21)
+            hist_ytd = hist[hist.index.year == now.year]
+
+            return {
+                "1W": format_rows(hist_1w),
+                "1M": format_rows(hist_1m),
+                "1Y": format_rows(hist),
+                "YTD": format_rows(hist_ytd),
+            }
+        except Exception as e:
+            self.logger.error(f"Error building chart history: {e}")
+            return {"1W": [], "1M": [], "1Y": [], "YTD": []}
