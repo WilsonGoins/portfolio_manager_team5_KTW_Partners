@@ -17,7 +17,8 @@ class PortfolioManager:
         #  Allocations: [{h_type: ETF, market_value: 46559.62, allocation_pct: 36.0}, {h_type: Cash, ...}],
         #  PortfolioSummary: {total_value: ..., day_change: ..., day_change_pct: ...},
         #  PortfolioHistory: [{date: "2026-07-27", value: ...}, ...],
-        #  TopMovers: [{symbol: ..., name: ..., price: ..., change: ...}, ...]
+        #  TopMovers: [{symbol: ..., name: ..., price: ..., change: ...}, ...],
+        #  LastUpdated: "2026-07-30T10:20:00-04:00"
         # }
 
     def GetOverviewData(self):
@@ -53,6 +54,10 @@ class PortfolioManager:
 
         # the watchlist's rows
         finalRes["TopMovers"] = self.GetTopMovers()
+
+        # when the yahoo finance quotes above were pulled, so the UI can show how
+        # stale the prices are. stamped last, once every quote is in hand.
+        finalRes["LastUpdated"] = datetime.now().astimezone().isoformat()
 
         return finalRes
 

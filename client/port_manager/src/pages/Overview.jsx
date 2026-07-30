@@ -3,6 +3,7 @@ import { PortfolioValueCard } from "../components/overview/PortfolioValueCard";
 import { WatchListCard } from "../components/overview/WatchListCard";
 import { AllocationCard } from "../components/overview/AllocationCard.jsx";
 import { HoldingsCard } from "../components/overview/HoldingsCard.jsx";
+import { useDataFreshness } from "../context/DataFreshness";
 import "./Overview.css";
 
 export function Overview() {
@@ -13,34 +14,52 @@ export function Overview() {
   const [topMovers, setTopMovers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const { refreshToken, setLastUpdated, setIsRefreshing } = useDataFreshness();
 
   useEffect(() => {
+    let cancelled = false;
+
     async function fetchOverviewData() {
+      // Only the very first load blanks the cards out. A refresh from the navbar
+      // leaves the current numbers up until the new ones arrive.
+      if (refreshToken === 0) setIsLoading(true);
+      setIsRefreshing(true);
+
       try {
-        setIsLoading(true);
-        const response = await fetch('/api/overview'); 
-        
+        const response = await fetch('/api/overview');
+
         if (!response.ok) {
           throw new Error(`Server returned ${response.status}`);
         }
 
         const overviewData = await response.json();
-        
+        if (cancelled) return;
+
         setHoldingsData(overviewData.HoldingsTable || []);
         setAllocationData(overviewData.Allocations || []);
         setPortfolioHistory(overviewData.PortfolioHistory || []);
         setPortfolioSummary(overviewData.PortfolioSummary || null);
         setTopMovers(overviewData.TopMovers || []);
+        setLastUpdated(overviewData.LastUpdated || new Date().toISOString());
+        setError(null);
       } catch (err) {
+        if (cancelled) return;
         console.error("Failed to fetch overview data:", err);
         setError(err.message);
       } finally {
-        setIsLoading(false);
+        if (!cancelled) {
+          setIsLoading(false);
+          setIsRefreshing(false);
+        }
       }
     }
 
     fetchOverviewData();
-  }, []);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshToken, setLastUpdated, setIsRefreshing]);
 
   return (
     <div className="overview-page">

@@ -38,6 +38,13 @@ export function HoldingsCard({ data }) {
       flex: 2,
     },
     {
+      field: 'h_type',
+      headerName: 'Type',
+      valueFormatter: (params) => params.value && params.value !== 'Cash' ? params.value : '--',
+      minWidth: 90,
+      flex: 1,
+    },
+    {
       field: 'num_shares',
       headerName: 'Shares',
       type: 'numericColumn',
