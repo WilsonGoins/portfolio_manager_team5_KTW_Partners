@@ -14,18 +14,25 @@ _MAX_QUOTE_WORKERS = 8
 # prices on screen are still today's.
 _QUOTE_TTL_SECONDS = 45
 
+# Ceiling on how many entries are held at once. Search caches a security per
+# result and its queries come from the user, so without a cap the cache would
+# grow with every new ticker anyone ever types.
+_MAX_CACHE_ENTRIES = 256
+
 
 class _TTLCache:
     """A small cache whose entries expire a fixed number of seconds after they
     were stored.
 
     Entries are written from the quote worker threads, so reads and writes are
-    both locked. Nothing is evicted on a timer -- an expired entry just reads as
-    a miss and is overwritten by the next fetch.
+    both locked. Expiry is lazy -- an expired entry reads as a miss -- but the
+    cache is capped, and going over the cap is what triggers a clear-out, so a
+    run of one-off lookups can't grow it without bound.
     """
 
-    def __init__(self, ttl_seconds: float):
+    def __init__(self, ttl_seconds: float, max_entries: int = _MAX_CACHE_ENTRIES):
         self._ttl = ttl_seconds
+        self._max_entries = max_entries
         self._entries: dict = {}
         self._lock = Lock()
 
@@ -42,8 +49,23 @@ class _TTLCache:
         return value if time.monotonic() - stored_at <= self._ttl else None
 
     def set(self, key, value):
+        now = time.monotonic()
         with self._lock:
-            self._entries[key] = (value, time.monotonic())
+            self._entries[key] = (value, now)
+            if len(self._entries) <= self._max_entries:
+                return
+
+            # over the cap: drop everything already expired, since an expired
+            # entry is dead weight -- it can only ever read as a miss
+            self._entries = {k: (v, t) for k, (v, t) in self._entries.items()
+                             if now - t <= self._ttl}
+
+            # still over: drop the oldest until we fit
+            overflow = len(self._entries) - self._max_entries
+            if overflow > 0:
+                oldest = sorted(self._entries, key=lambda k: self._entries[k][1])
+                for k in oldest[:overflow]:
+                    del self._entries[k]
 
     def clear(self):
         with self._lock:
@@ -77,7 +99,11 @@ class FinanceManager:
 
     def get_stock_by_ticker(self, ticker: str) -> dict:
         """Method 1: Query for stock by ticker."""
-        cached = self._cache.get(("quote", ticker))
+        # keyed on the normalised symbol so "aapl" and "AAPL" share one entry.
+        # str() keeps a non-string ticker out of the cache lookup and lets it
+        # fail below the way it always has, as a caught error rather than here.
+        cache_key = ("quote", str(ticker).upper())
+        cached = self._cache.get(cache_key)
         if cached is not None:
             return cached
 
@@ -96,7 +122,7 @@ class FinanceManager:
             return None
 
         # only successes are cached, so a blip doesn't stick around for the whole TTL
-        self._cache.set(("quote", ticker), quote)
+        self._cache.set(cache_key, quote)
         return quote
 
     def get_stocks_by_tickers(self, tickers: list[str]) -> dict:
@@ -220,7 +246,8 @@ class FinanceManager:
 
     def _get_security_details(self, ticker: str) -> dict:
         """Builds the full SecurityCard-shaped dict for a single ticker."""
-        cached = self._cache.get(("details", ticker))
+        cache_key = ("details", str(ticker).upper())
+        cached = self._cache.get(cache_key)
         if cached is not None:
             return cached
 
@@ -259,7 +286,7 @@ class FinanceManager:
                               ticker}': {e}", exc_info=True)
             return None
 
-        self._cache.set(("details", ticker), details)
+        self._cache.set(cache_key, details)
         return details
 
     def _get_performance_history(self, stock: yf.Ticker) -> dict:
