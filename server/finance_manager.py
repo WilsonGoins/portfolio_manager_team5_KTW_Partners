@@ -378,29 +378,42 @@ class FinanceManager:
         Fetches news formatted specifically for a lightweight UI card.
         Falls back through standard market tickers if the target ticker has no news.
         """
-        fallback_tickers = ["SPY", "AAPL", "MSFT", "NVDA", "TSX"]
+        # ^GSPTSE is the Toronto index; "TSX" isn't a symbol Yahoo answers to
+        fallback_tickers = ["SPY", "AAPL", "MSFT", "NVDA", "^GSPTSE"]
         results = yf.screen("day_gainers", count=limit)
         quotes = results.get("quotes", [])
-        candidate_tickers = []
 
-        for q in quotes:
-            candidate_tickers.append(q.get("symbol"))
+        candidate_tickers = [q.get("symbol") for q in quotes]
         candidate_tickers.extend(fallback_tickers)
 
-        card_items = []
+        final_res = []          # news stories to return
+        seen_urls = set()       # urls of stories we've fully added to final_res
+
         for symbol in candidate_tickers:
+            if len(final_res) >= limit:
+                break
             if not symbol:
                 continue
-            try:
-                news_item = yf.Ticker(symbol.strip().upper()).news[0]
-                if not news_item:
-                    continue
 
+            ticker = symbol.strip().upper()
+
+            try:
+                stories = yf.Ticker(ticker).news or []
+            except Exception as e:
+                self.logger.warning(f"Failed to fetch news for '{ticker}': {e}")
+                continue
+
+            for news_item in stories:
                 content = news_item.get("content", news_item)
                 title = content.get("title")
-
                 link = content.get("canonicalUrl", {}).get(
                     "url") or content.get("link")
+
+                if not (title and link):        # if nothing to show, go to next story
+                    continue
+
+                if link in seen_urls:           # check if we already added this story
+                    continue
 
                 provider = content.get("provider", {}).get(
                     "displayName") or content.get("publisher", "Yahoo Finance")
@@ -411,20 +424,19 @@ class FinanceManager:
 
                 if isinstance(thumbnail_data, dict):
                     resolutions = thumbnail_data.get("resolutions", [])
-                    if resolutions and len(resolutions) > 0:
+                    if resolutions:
                         image_url = resolutions[0].get("url")
                     else:
                         image_url = thumbnail_data.get("url")
 
-                if title and link:
-                    card_items.append({
-                        "title": title,
-                        "publisher": provider,
-                        "url": link,
-                        "image_url": image_url,
-                        "ticker": symbol.upper()
-                    })
+                seen_urls.add(link)
+                final_res.append({
+                    "title": title,
+                    "publisher": provider,
+                    "url": link,
+                    "image_url": image_url,
+                    "ticker": ticker,
+                })
+                break   # exit iteration, onto the next
 
-            except Exception:
-                continue
-        return card_items
+        return final_res
