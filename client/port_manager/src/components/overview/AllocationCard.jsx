@@ -20,7 +20,7 @@ function AllocationTooltip({ active, payload }) {
     <div className="allocation-tooltip">
       <div className="allocation-tooltip-type">
         <span className="legend-icon" style={{ backgroundColor: slice.fill }} />
-        {formatHoldingType(slice.h_type)}
+        {formatHoldingType(slice.label)}
       </div>
       <div className="allocation-tooltip-value">{currency.format(slice.market_value)}</div>
       <div className="allocation-tooltip-pct">{slice.allocation_pct.toFixed(1)}% of portfolio</div>
@@ -107,19 +107,23 @@ export function AllocationCard({ dataByType, dataBySector }) {
               <span>Value</span>
             </div>
 
-        {chartData.map((entry) => (
-          <div key={entry.h_type} className="allocation-row">
-            <div className="allocation-identity">
-              <span className="legend-icon" style={{ backgroundColor: entry.fill }} />
-              <span className="allocation-type">{formatHoldingType(entry.h_type)}</span>
-            </div>
-            <div className="allocation-figures">
-              <span className="allocation-value">{currency.format(entry.market_value)}</span>
-              <span className="allocation-pct">{entry.allocation_pct.toFixed(1)}%</span>
+            <div className="allocation-rows">
+              {chartData.map((entry) => (
+                <div key={entry.label} className="allocation-row">
+                  <div className="allocation-identity">
+                    <span className="legend-icon" style={{ backgroundColor: entry.fill }} />
+                    <span className="allocation-type">{formatHoldingType(entry.label)}</span>
+                  </div>
+                  <div className="allocation-figures">
+                    <span className="allocation-value">{currency.format(entry.market_value)}</span>
+                    <span className="allocation-pct">{entry.allocation_pct.toFixed(1)}%</span>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-        ))}
-      </div>
+        </>
+      )}
     </div>
   );
 }

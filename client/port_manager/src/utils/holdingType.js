@@ -18,11 +18,18 @@ export function formatHoldingType(value) {
   // type should pass through looking the way the rest of the row's blanks do
   if (value === null || value === undefined || value === '') return '--';
 
-  const key = String(value).trim().toUpperCase();
+  const raw = String(value).trim();
+  const key = raw.toUpperCase();
   if (TYPE_LABELS[key]) return TYPE_LABELS[key];
   if (key === '--') return '--';
 
-  // Something new from Yahoo. Short ones are acronyms and are left alone; longer
-  // ones read better as a word than as shouting.
+  // Anything that isn't shouting is already written for a human -- the allocation
+  // card also sends sector names through here ("Consumer Cyclical"), and those
+  // arrive from Yahoo correctly cased. Lower-casing the tail of one would turn it
+  // into "Consumer cyclical".
+  if (raw !== key) return raw;
+
+  // Something new from Yahoo, and in caps. Short ones are acronyms and are left
+  // alone; longer ones read better as a word than as shouting.
   return key.length <= 4 ? key : key.charAt(0) + key.slice(1).toLowerCase();
 }
