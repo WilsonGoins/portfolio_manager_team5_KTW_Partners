@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry } from 'ag-grid-community';
 import { ClientSideRowModelModule } from 'ag-grid-community';
+import { formatHoldingType } from '../../utils/holdingType';
 
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
@@ -63,7 +64,7 @@ export function HoldingsCard({ data }) {
     {
       field: 'h_type',
       headerName: 'Type',
-      valueFormatter: (params) => params.value,
+      valueFormatter: (params) => formatHoldingType(params.value),
       minWidth: 90,
       flex: 1,
     },

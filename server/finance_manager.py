@@ -22,11 +22,11 @@ _MAX_CACHE_ENTRIES = 256
 
 
 class _TTLCache:
-    """A small cache whose entries expire a fixed number of seconds after they
+    """A small cache whose entries expire a 45 seconds after they
     were stored.
 
     Entries are written from the quote worker threads, so reads and writes are
-    both locked. Expiry is lazy -- an expired entry reads as a miss -- but the
+    both locked. Expiry is lazy so an expired entry reads as a miss, but the
     cache is capped, and going over the cap is what triggers a clear-out, so a
     run of one-off lookups can't grow it without bound.
     """
@@ -99,6 +99,36 @@ class FinanceManager:
                 return f"${formatted}" if is_currency else formatted
         return f"${val:.2f}" if is_currency else f"{val:.0f}"
 
+    def _extract_beta(self, info: dict) -> float | None:
+        """Beta out of an already-fetched `info` payload -- how much the security
+        moves for a given move in the broad market.
+
+        Yahoo files it under two different keys: equities carry "beta" (5 year
+        monthly against the S&P 500), while ETFs and mutual funds carry
+        "beta3Year" instead. Neither is guaranteed -- some tickers come back with
+        a full payload and simply no beta in it -- so None is a normal answer
+        here and callers have to handle it.
+
+        Read off the same `info` dict the price comes from, so a beta costs no
+        extra request.
+        """
+        # not `a or b`: a legitimate beta of 0.0 is falsy and would fall through
+        beta = info.get("beta")
+        if beta is None:
+            beta = info.get("beta3Year")
+
+        if beta is None:
+            return None
+
+        # a non-numeric beta is Yahoo giving us something unusable rather than a
+        # value worth propagating into a weighted average
+        try:
+            beta = float(beta)
+        except (TypeError, ValueError):
+            return None
+
+        return beta if math.isfinite(beta) else None
+
     def get_stock_by_ticker(self, ticker: str) -> dict:
         """Method 1: Query for stock by ticker."""
         # keyed on the normalised symbol so "aapl" and "AAPL" share one entry.
@@ -121,6 +151,7 @@ class FinanceManager:
                 # back to Yahoo's fund "category" (e.g. "Large Growth"), and
                 # finally to "Other" for anything with neither (e.g. cash).
                 "sector": info.get("sector") or info.get("category") or "Other",
+                "beta": self._extract_beta(info),
             }
         except Exception as e:
             self.logger.error(f"Failed to fetch stock by ticker '{
@@ -131,6 +162,10 @@ class FinanceManager:
         # thin payload that parses cleanly with its numbers missing. Caching one
         # of those would serve the same unusable quote for the whole TTL, so it
         # is returned but not stored and the next request fetches again.
+        #
+        # Beta deliberately isn't part of this test. Plenty of securities have no
+        # beta on Yahoo even in a complete payload, so requiring one would mean
+        # never caching those tickers and re-fetching them on every single read.
         if quote["current_price"] is not None and quote["previous_close"] is not None:
             self._cache.set(cache_key, quote)
         else:

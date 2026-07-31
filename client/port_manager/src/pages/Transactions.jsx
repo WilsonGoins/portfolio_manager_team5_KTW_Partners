@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { TransactionsTable } from "../components/transactions/TransactionsTable";
+import { TransactionsSkeleton } from "../components/transactions/TransactionsSkeleton";
 import "./Transactions.css";
 
 export function Transactions() {
@@ -34,10 +35,7 @@ export function Transactions() {
     <div className="transactions-page">
       <h2 className="transactions-page-title">Transactions</h2>
       {isLoading ? (
-        <div className="card transactions-card">
-          <h3>Transactions</h3>
-          <p style={{ color: '#718096', padding: '16px' }}>Loading transactions...</p>
-        </div>
+        <TransactionsSkeleton />
       ) : error ? (
         <div className="card transactions-card">
           <h3>Transactions</h3>

@@ -4,6 +4,11 @@ from datetime import datetime
 from db_items import Holding, Transaction
 
 
+_CONSERVATIVE_BETA_CEILING = 0.8
+_MARKET_BETA_CEILING = 1.2
+_RISK_HIGHLIGHT_MIN_GAP_PCT = 3.0       # difference threshold between a holding's share of the risk and a holidng's share of the portfolio
+
+
 class PortfolioManager:
     """This class is responsible for handling all portfolio related queries. It delegates to DBManager and FinanceManager as needed"""
 
@@ -159,22 +164,24 @@ class PortfolioManager:
     def GetPortfolioHistory(self, todaysValue: float = None):
         dbRes = self.db_manager.get_portfolio_values()
 
-        history = []
+        # p_date is a timestamp, not a date, so one calendar day can hold several
+        # snapshots -- two written minutes apart are one day of history, not two.
+        # The chart plots a value per day, and a second point on the same date
+        # draws as a vertical jump inside a single x position. Keying by date
+        # collapses them; ascending order means the day's latest write wins.
+        valueByDate = {}
         for pv in sorted(dbRes, key=lambda pv: pv.p_date):
-            history.append({
-                "date": pv.p_date.strftime("%Y-%m-%d"),
-                # Decimal isn't JSON serializable
-                "value": float(pv.value),
-            })
+            # Decimal isn't JSON serializable
+            valueByDate[pv.p_date.strftime("%Y-%m-%d")] = float(pv.value)
 
+        # today's live total replaces whatever the table holds for today, so the
+        # line ends at what the portfolio is worth now rather than at the last
+        # snapshot that happened to be written
         if todaysValue is not None:
-            today = datetime.now().strftime("%Y-%m-%d")
-            if history and history[-1]["date"] == today:
-                history[-1]["value"] = todaysValue
-            else:
-                history.append({"date": today, "value": todaysValue})
+            valueByDate[datetime.now().strftime("%Y-%m-%d")] = todaysValue
 
-        return history
+        return [{"date": date, "value": valueByDate[date]}
+                for date in sorted(valueByDate)]
 
     # Totals up the enriched holdings (cash included) into the headline numbers
     # for the portfolio value card: what the portfolio is worth right now, and
@@ -378,6 +385,147 @@ class PortfolioManager:
             })
 
         return allocations
+
+    # Measures the portfolio's market risk using beta
+    #
+    # Yahoo doesn't have a beta for every security. A holding whose beta is unknown
+    # is left out of the average rather than counted as 0.0 -- counting it as 0.0
+    # would be calling it cash, and would understate risk. What got left
+    # out is reported as coverage_pct, so the caller can tell whether the number
+    # describes the whole portfolio or only a slice of it.
+    #
+    # Returns:
+    #   {portfolio_beta: 1.05, risk_level: "Market", coverage_pct: 92.4,
+    #    total_value: ..., covered_value: ...,
+    #    holdings: [{symbol, name, h_type, beta, market_value, weight_pct,
+    #                contribution, risk_share_pct}, ...],
+    #    unpriced: ["XYZ", ...],
+    #    highlight: {symbol, name, weight_pct, risk_share_pct, direction} | None}
+    # holdings is sorted by contribution, so the biggest sources of risk lead.
+
+    def CalculatePortfolioRisk(self):
+        dbHoldingsRes = self.db_manager.get_holdings()
+
+        quotes = self.finance_manager.get_stocks_by_tickers(
+            [holding.ticker for holding in dbHoldingsRes])
+
+        cashAmount = self.GetCashAmount()
+
+        # cash has 0.0 beta
+        total_value = cashAmount
+        covered_value = cashAmount
+        unpriced = []
+
+        rows = [{
+            "symbol": "--",
+            "name": "Cash",
+            "h_type": "Cash",
+            "beta": 0.0,
+            "market_value": cashAmount,
+        }]
+
+        for holding in dbHoldingsRes:
+            quote = quotes.get(holding.ticker)
+
+            # skip if there is no beta
+            if quote is None or quote["current_price"] is None:
+                unpriced.append(holding.ticker)
+                continue
+
+            market_value = holding.quantity_shares * quote["current_price"]
+            total_value += market_value
+
+            beta = quote["beta"]
+            if beta is not None:
+                covered_value += market_value
+
+            rows.append({
+                "symbol": holding.ticker,
+                "name": holding.name,
+                "h_type": holding.h_type,
+                "beta": beta,
+                "market_value": market_value,
+            })
+
+
+        for row in rows:
+            if row["beta"] is None or not covered_value:
+                row["weight_pct"] = 0
+                row["contribution"] = 0
+                continue
+
+            weight = row["market_value"] / covered_value
+            row["weight_pct"] = weight * 100
+            row["contribution"] = weight * row["beta"]
+
+        portfolio_beta = sum(row["contribution"] for row in rows)
+
+        # each holding's share of the portfolio's beta, as a percent
+        # An unrated holding lands = 0, like cash does,
+        for row in rows:
+            row["risk_share_pct"] = (row["contribution"] / portfolio_beta * 100
+                                     ) if portfolio_beta else 0
+
+        rows.sort(key=lambda row: row["contribution"], reverse=True)
+
+        return {
+            "portfolio_beta": portfolio_beta,
+            "risk_level": self.ClassifyRiskLevel(portfolio_beta),
+            "coverage_pct": (covered_value / total_value * 100) if total_value else 0,
+            "total_value": total_value,
+            "covered_value": covered_value,
+            "holdings": rows,
+            "unpriced": unpriced,
+            "highlight": self.FindRiskHighlight(rows),
+            # the thresholds risk_level was decided with, so the meter can shade
+            # the same bands it labels. Sent rather than repeated in the frontend
+            # so tuning the constants above can't leave the two disagreeing.
+            "beta_bands": {
+                "conservative_ceiling": _CONSERVATIVE_BETA_CEILING,
+                "market_ceiling": _MARKET_BETA_CEILING,
+            },
+        }
+
+    # Picks the holding whose share of the risk is furthest from its share of the
+    # money, for information for user
+    # Returns the numbers, not the wording, so the copy stays in the component.
+    #
+    # Cash is skipped (it is 0 beta by definition, so it always diverges and never
+    # says anything), and so are unrated holdings (no risk share to compare).
+    # Returns None when nothing diverges enough to be worth a claim.
+
+    def FindRiskHighlight(self, rows):
+        candidates = [row for row in rows
+                      if row["beta"] is not None and row["h_type"] != "Cash"]
+        if not candidates:
+            return None
+
+        top = max(candidates,
+                  key=lambda row: abs(row["risk_share_pct"] - row["weight_pct"]))
+
+        gap = top["risk_share_pct"] - top["weight_pct"]
+        if abs(gap) < _RISK_HIGHLIGHT_MIN_GAP_PCT:
+            return None
+
+        return {
+            "symbol": top["symbol"],
+            "name": top["name"],
+            "weight_pct": top["weight_pct"],
+            "risk_share_pct": top["risk_share_pct"],
+            # which way to word it: "but" vs "but only"
+            "direction": "above" if gap > 0 else "below",
+        }
+
+    # Turns a beta into the plain-language bucket the UI can label it with. The
+    # thresholds are a presentation choice, not a financial standard -- they're
+    # here so the wording stays consistent wherever risk gets shown.
+
+    def ClassifyRiskLevel(self, beta: float) -> str:
+        if beta < _CONSERVATIVE_BETA_CEILING:
+            return "Conservative"
+        if beta <= _MARKET_BETA_CEILING:
+            return "Market"
+        return "Aggressive"
 
     def get_top_movers(self) -> list[dict]:
         return self.finance_manager.get_top_movers()

@@ -1,0 +1,38 @@
+/* Heights are pinned to the ag-grid values TransactionsTable passes, so the
+   swap from skeleton to real table doesn't move the page. */
+
+.transactions-skeleton-heading {
+  width: 168px;
+  height: 18px;             /* .card h3, 1.125rem */
+  margin-bottom: 24px;
+}
+
+.transactions-skeleton-grid {
+  width: 100%;
+}
+
+.transactions-skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 44px;             /* AgGridReact rowHeight */
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.transactions-skeleton-header {
+  height: 38px;             /* AgGridReact headerHeight */
+}
+
+.transactions-skeleton-row:last-of-type {
+  border-bottom: none;
+}
+
+.transactions-skeleton-cell {
+  min-width: 0;             /* lets a flex cell shrink instead of overflowing */
+}
+
+/* Header labels are shorter and lighter than the data below them. */
+.transactions-skeleton-header-bar {
+  width: 52%;
+  height: 9px;
+}

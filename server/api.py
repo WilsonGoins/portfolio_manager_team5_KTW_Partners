@@ -109,6 +109,17 @@ def get_top_movers():
         return jsonify({"error": "Failed to fetch watchlist data"}), 500
 
 
+@app.route("/api/risk")
+def risk():
+    """The Risk page's data: the portfolio's beta, how it breaks down by holding,
+    and how much of the portfolio that beta actually describes."""
+    try:
+        return jsonify(portfolio_manager.CalculatePortfolioRisk())
+    except Exception as e:
+        app.logger.error(f"Failed to get risk data: {e}", exc_info=True)
+        return jsonify({"error": "Failed to fetch risk data"}), 500
+
+
 @app.route("/api/search")
 def search():
     query = request.args.get("q", "").strip()

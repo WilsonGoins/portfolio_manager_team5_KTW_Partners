@@ -12,11 +12,22 @@
   margin: 0 0 24px 0;
 }
 
-/* Widgets stack here as they're added -- this card is a normal width rather
-   than stretched full-page, so it doesn't look stranded once siblings join it. */
+/* Cards are direct grid items so a second row starts at one shared y no matter
+   how tall the row above it grows -- the same reason Overview is one grid rather
+   than two columns. align-items: start keeps each card at its natural height.
+
+   The split is lopsided because the two cards want different widths: the risk
+   card's dumbbell needs room for a symbol, a track, two values and a beta on one
+   line, while the movers card is two rows of text and is narrow by nature. */
 .analytics-main-content {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
   gap: 24px;
-  max-width: 480px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .analytics-main-content {
+    grid-template-columns: 1fr;
+  }
 }
