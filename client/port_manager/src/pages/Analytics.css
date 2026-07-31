@@ -1,0 +1,22 @@
+.analytics-page {
+  padding: 24px;
+  background-color: #f8f9fa;
+  font-family: 'Public Sans', sans-serif;
+  min-height: 100vh;
+}
+
+.analytics-page-title {
+  font-size: 1.5rem;
+  color: #1a202c;
+  font-weight: 600;
+  margin: 0 0 24px 0;
+}
+
+/* Widgets stack here as they're added -- this card is a normal width rather
+   than stretched full-page, so it doesn't look stranded once siblings join it. */
+.analytics-main-content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 480px;
+}

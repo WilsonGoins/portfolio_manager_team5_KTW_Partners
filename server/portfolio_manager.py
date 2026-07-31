@@ -24,27 +24,9 @@ class PortfolioManager:
 
     def GetOverviewData(self):
         finalRes = {}
-        # first we get the data on holdings and structure it for the holdings table
-        # this is a list of Holding objects, each with {ticker, name, h_type, quantity_shares, ...}
-        dbHoldingsRes = self.db_manager.get_holdings()
 
-        # one batched lookup rather than a call per holding inside the loop below:
-        # those calls used to run back to back, so the page waited on the sum of
-        # every round trip. Batched, they overlap and cost about one round trip total.
-        quotes = self.finance_manager.get_stocks_by_tickers(
-            [holding.ticker for holding in dbHoldingsRes])
-
-        holdingsWithPrice = []
-        for holding in dbHoldingsRes:      # this will iterate through the list we got and add current price for each of them
-            yahooRes = quotes.get(holding.ticker)
-            if (yahooRes is None):
-                raise ValueError("Holding must be a valid security.")
-            holdingsWithPrice.append({"symbol": holding.ticker, "name": holding.name, "h_type": holding.h_type,
-                                      "num_shares": holding.quantity_shares, "curr_price": yahooRes["current_price"],
-                                      "previous_close": yahooRes["previous_close"], "sector": yahooRes.get("sector") or "Other"})
-
-        # now clean up the data to have all the necessary information (cash is folded in as its own holding)
-        enrichedHoldings = self.CalculateHoldingInfo(holdingsWithPrice)
+        # cash is folded in as its own holding by CalculateHoldingInfo
+        enrichedHoldings = self._GetEnrichedHoldings()
         finalRes["HoldingsTable"] = enrichedHoldings
 
         # now get the allocations for the allocations graph.
@@ -73,6 +55,76 @@ class PortfolioManager:
         finalRes["LastUpdated"] = datetime.now().astimezone().isoformat()
 
         return finalRes
+
+    # Fetches this user's holdings and their current Yahoo quotes, and returns
+    # the enriched list CalculateHoldingInfo builds from them (cash included
+    # as its own row). Factored out of GetOverviewData so any other feature
+    # that needs the current per-holding numbers -- e.g. the Analytics page's
+    # biggest gainer/loser -- shares this one round trip to Yahoo instead of
+    # repeating it.
+
+    def _GetEnrichedHoldings(self):
+        # this is a list of Holding objects, each with {ticker, name, h_type, quantity_shares, ...}
+        dbHoldingsRes = self.db_manager.get_holdings()
+
+        # one batched lookup rather than a call per holding inside the loop below:
+        # those calls used to run back to back, so the page waited on the sum of
+        # every round trip. Batched, they overlap and cost about one round trip total.
+        quotes = self.finance_manager.get_stocks_by_tickers(
+            [holding.ticker for holding in dbHoldingsRes])
+
+        holdingsWithPrice = []
+        for holding in dbHoldingsRes:      # this will iterate through the list we got and add current price for each of them
+            yahooRes = quotes.get(holding.ticker)
+            if (yahooRes is None):
+                raise ValueError("Holding must be a valid security.")
+            holdingsWithPrice.append({"symbol": holding.ticker, "name": holding.name, "h_type": holding.h_type,
+                                      "num_shares": holding.quantity_shares, "curr_price": yahooRes["current_price"],
+                                      "previous_close": yahooRes["previous_close"], "sector": yahooRes.get("sector") or "Other"})
+
+        # now clean up the data to have all the necessary information (cash is folded in as its own holding)
+        return self.CalculateHoldingInfo(holdingsWithPrice)
+
+    # Analytics page: which current holding gained the most, and which lost
+    # the most, by percent move since yesterday's close -- the same
+    # change_pct_since_close CalculateHoldingInfo already computes for the
+    # Holdings table, just picking the max and min of it instead of listing
+    # every row. Cash is excluded since it has no daily change to speak of.
+    # Returns {"biggest_gainer": {...}, "biggest_loser": {...}}, with a field
+    # set to None when there's no holding with a computable change (e.g. an
+    # empty portfolio, or every quote missing a previous close). If exactly
+    # one holding qualifies, it's correctly both entries -- it's the only
+    # thing that moved, in either direction.
+
+    def GetBiggestGainerAndLoser(self):
+        enrichedHoldings = self._GetEnrichedHoldings()
+
+        # only holdings with an actual numeric move -- excludes cash ("--")
+        # and any holding whose quote came back without enough data to price
+        movers = [holding for holding in enrichedHoldings
+                 if isinstance(holding["change_pct_since_close"], (int, float))]
+
+        if not movers:
+            return {"biggest_gainer": None, "biggest_loser": None}
+
+        def _summarize(holding):
+            return {
+                "symbol": holding["symbol"],
+                "name": holding["name"],
+                "curr_price": holding["curr_price"],
+                "change_since_close": holding["change_since_close"],
+                "change_pct_since_close": holding["change_pct_since_close"],
+            }
+
+        biggest_gainer = max(
+            movers, key=lambda holding: holding["change_pct_since_close"])
+        biggest_loser = min(
+            movers, key=lambda holding: holding["change_pct_since_close"])
+
+        return {
+            "biggest_gainer": _summarize(biggest_gainer),
+            "biggest_loser": _summarize(biggest_loser),
+        }
 
     # Today's biggest market movers for the watchlist. Reshapes the finance
     # manager's quotes into [{"symbol", "name", "price", "change"}], where
