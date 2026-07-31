@@ -114,6 +114,18 @@ def search():
         return jsonify({"error": "Failed to search securities"}), 500
 
 
+@app.route("/api/analytics/movers")
+def analytics_movers():
+    """Analytics page: the current holding with the biggest gain and the one
+    with the biggest loss, by percent move since yesterday's close."""
+    try:
+        return jsonify(portfolio_manager.GetBiggestGainerAndLoser())
+    except Exception as e:
+        app.logger.error(f"Failed to get biggest gainer/loser: {
+            e}", exc_info=True)
+        return jsonify({"error": "Failed to fetch biggest gainer/loser"}), 500
+
+
 @app.route("/api/buy", methods=["POST"])
 def buy():
     data = request.get_json()
