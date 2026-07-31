@@ -164,22 +164,24 @@ class PortfolioManager:
     def GetPortfolioHistory(self, todaysValue: float = None):
         dbRes = self.db_manager.get_portfolio_values()
 
-        history = []
+        # p_date is a timestamp, not a date, so one calendar day can hold several
+        # snapshots -- two written minutes apart are one day of history, not two.
+        # The chart plots a value per day, and a second point on the same date
+        # draws as a vertical jump inside a single x position. Keying by date
+        # collapses them; ascending order means the day's latest write wins.
+        valueByDate = {}
         for pv in sorted(dbRes, key=lambda pv: pv.p_date):
-            history.append({
-                "date": pv.p_date.strftime("%Y-%m-%d"),
-                # Decimal isn't JSON serializable
-                "value": float(pv.value),
-            })
+            # Decimal isn't JSON serializable
+            valueByDate[pv.p_date.strftime("%Y-%m-%d")] = float(pv.value)
 
+        # today's live total replaces whatever the table holds for today, so the
+        # line ends at what the portfolio is worth now rather than at the last
+        # snapshot that happened to be written
         if todaysValue is not None:
-            today = datetime.now().strftime("%Y-%m-%d")
-            if history and history[-1]["date"] == today:
-                history[-1]["value"] = todaysValue
-            else:
-                history.append({"date": today, "value": todaysValue})
+            valueByDate[datetime.now().strftime("%Y-%m-%d")] = todaysValue
 
-        return history
+        return [{"date": date, "value": valueByDate[date]}
+                for date in sorted(valueByDate)]
 
     # Totals up the enriched holdings (cash included) into the headline numbers
     # for the portfolio value card: what the portfolio is worth right now, and
