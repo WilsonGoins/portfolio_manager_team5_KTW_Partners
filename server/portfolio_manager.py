@@ -3,6 +3,13 @@ from db_manager import DBManager
 from datetime import datetime
 from db_items import Holding, Transaction
 
+# Where a portfolio beta stops being one risk label and starts being the next.
+# A beta of 1.0 is the market itself, so the middle band is deliberately centred
+# on it -- wide enough that a portfolio that merely tracks the market isn't
+# labelled aggressive for rounding.
+_CONSERVATIVE_BETA_CEILING = 0.8
+_MARKET_BETA_CEILING = 1.2
+
 
 class PortfolioManager:
     """This class is responsible for handling all portfolio related queries. It delegates to DBManager and FinanceManager as needed"""
@@ -316,6 +323,100 @@ class PortfolioManager:
             })
 
         return allocations
+
+    # Measures the portfolio's market risk using beta
+    #
+    # Yahoo doesn't have a beta for every security. A holding whose beta is unknown
+    # is left out of the average rather than counted as 0.0 -- counting it as 0.0
+    # would be calling it cash, and would understate risk. What got left
+    # out is reported as coverage_pct, so the caller can tell whether the number
+    # describes the whole portfolio or only a slice of it.
+    #
+    # Returns:
+    #   {portfolio_beta: 1.05, risk_level: "Market", coverage_pct: 92.4,
+    #    total_value: ..., covered_value: ...,
+    #    holdings: [{symbol, name, h_type, beta, market_value, weight_pct,
+    #                contribution}, ...],
+    #    unpriced: ["XYZ", ...]}
+
+    def CalculatePortfolioRisk(self):
+        dbHoldingsRes = self.db_manager.get_holdings()
+
+        quotes = self.finance_manager.get_stocks_by_tickers(
+            [holding.ticker for holding in dbHoldingsRes])
+
+        cashAmount = self.GetCashAmount()
+
+        # cash has 0.0 beta
+        total_value = cashAmount
+        covered_value = cashAmount
+        unpriced = []
+
+        rows = [{
+            "symbol": "--",
+            "name": "Cash",
+            "h_type": "Cash",
+            "beta": 0.0,
+            "market_value": cashAmount,
+        }]
+
+        for holding in dbHoldingsRes:
+            quote = quotes.get(holding.ticker)
+
+            # skip if there is no beta
+            if quote is None or quote["current_price"] is None:
+                unpriced.append(holding.ticker)
+                continue
+
+            market_value = holding.quantity_shares * quote["current_price"]
+            total_value += market_value
+
+            beta = quote["beta"]
+            if beta is not None:
+                covered_value += market_value
+
+            rows.append({
+                "symbol": holding.ticker,
+                "name": holding.name,
+                "h_type": holding.h_type,
+                "beta": beta,
+                "market_value": market_value,
+            })
+
+
+        for row in rows:
+            if row["beta"] is None or not covered_value:
+                row["weight_pct"] = 0
+                row["contribution"] = 0
+                continue
+
+            weight = row["market_value"] / covered_value
+            row["weight_pct"] = weight * 100
+            row["contribution"] = weight * row["beta"]
+
+        portfolio_beta = sum(row["contribution"] for row in rows)
+        rows.sort(key=lambda row: row["contribution"], reverse=True)
+
+        return {
+            "portfolio_beta": portfolio_beta,
+            "risk_level": self.ClassifyRiskLevel(portfolio_beta),
+            "coverage_pct": (covered_value / total_value * 100) if total_value else 0,
+            "total_value": total_value,
+            "covered_value": covered_value,
+            "holdings": rows,
+            "unpriced": unpriced,
+        }
+
+    # Turns a beta into the plain-language bucket the UI can label it with. The
+    # thresholds are a presentation choice, not a financial standard -- they're
+    # here so the wording stays consistent wherever risk gets shown.
+
+    def ClassifyRiskLevel(self, beta: float) -> str:
+        if beta < _CONSERVATIVE_BETA_CEILING:
+            return "Conservative"
+        if beta <= _MARKET_BETA_CEILING:
+            return "Market"
+        return "Aggressive"
 
     def get_top_movers(self) -> list[dict]:
         return self.finance_manager.get_top_movers()
