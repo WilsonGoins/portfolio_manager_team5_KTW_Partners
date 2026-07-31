@@ -1,0 +1,64 @@
+/* Shared skeleton base. The sweep is a pseudo-element rather than an animated
+   background-position so each bar can still set its own width and radius.
+
+   Same rules the overview's skeleton declares, so a bar looks identical whichever
+   page it appears on. Kept in its own file because Analytics and Transactions are
+   separate chunks and neither loads the overview's CSS. */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background-color: #d8e0e9;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.65) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: overview-skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+/* Deliberately the same keyframe name the overview declares, with the same
+   frames. @keyframes names are global with no scoping, so a differently-named
+   copy would be a second animation doing the same job -- and a same-named copy
+   with different frames is the bug the overview's own comment warns about. */
+@keyframes overview-skeleton-shimmer {
+  100% { transform: translateX(100%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after {
+    animation: none;
+  }
+}
+
+.skeleton-card {
+  pointer-events: none;
+}
+
+.skeleton-text {
+  height: 13px;
+  border-radius: 4px;
+}
+
+/* Announced to screen readers, since a skeleton is otherwise silent. */
+.skeleton-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

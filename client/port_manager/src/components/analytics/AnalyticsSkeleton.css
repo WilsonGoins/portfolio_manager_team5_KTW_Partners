@@ -1,0 +1,192 @@
+/* Every height here is pinned to the real card's, so the swap from skeleton to
+   content doesn't move the page. Where a number matches something in
+   RiskCard.css or BiggestMoversCard.css, the comment says which. */
+
+.analytics-skeleton-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;      /* .risk-card-header */
+}
+
+.skeleton-heading {
+  width: 168px;
+  height: 18px;             /* .card h3, 1.125rem */
+}
+
+/* --- headline + meter --- */
+
+.analytics-skeleton-headline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.analytics-skeleton-beta {
+  width: 116px;
+  height: 40px;             /* .risk-beta, 2.75rem */
+}
+
+.analytics-skeleton-chip {
+  width: 76px;
+  height: 22px;             /* .risk-level-chip */
+  border-radius: 999px;
+}
+
+.analytics-skeleton-meter {
+  height: 8px;              /* .risk-meter-track */
+  border-radius: 999px;
+  margin-top: 20px;         /* .risk-meter */
+}
+
+.analytics-skeleton-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;          /* .risk-meter-scale */
+}
+
+.analytics-skeleton-scale-label {
+  width: 46px;
+  height: 9px;
+}
+
+/* --- takeaway --- */
+
+.analytics-skeleton-takeaway {
+  height: 46px;             /* .risk-takeaway: 14px padding + line + border */
+  border-radius: 8px;
+  margin-top: 20px;
+}
+
+/* --- dumbbell --- */
+
+.analytics-skeleton-legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 20px;
+  margin-bottom: 12px;      /* .dumbbell-legend */
+}
+
+.analytics-skeleton-legend-item {
+  width: 84px;
+  height: 9px;
+}
+
+.analytics-skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 32px;             /* .dumbbell-row-button */
+  padding: 0 6px;
+}
+
+/* A plain cell, not a bar: the varying-width bar sits inside it. The cell holds
+   the column's width so the track beside it always starts at the same x. */
+.analytics-skeleton-symbol {
+  width: 52px;              /* .dumbbell-symbol */
+  flex-shrink: 0;
+}
+
+.analytics-skeleton-symbol .skeleton {
+  height: 10px;
+}
+
+.analytics-skeleton-track {
+  position: relative;
+  flex: 1;
+  height: 100%;
+  min-width: 80px;          /* .dumbbell-track */
+}
+
+.analytics-skeleton-connector {
+  position: absolute;
+  top: 50%;
+  height: 2px;              /* .dumbbell-connector */
+  transform: translateY(-50%);
+  border-radius: 0;
+}
+
+.analytics-skeleton-dot {
+  position: absolute;
+  top: 50%;
+  width: 9px;
+  height: 9px;              /* .dumbbell-dot */
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.analytics-skeleton-values {
+  width: 120px;             /* .dumbbell-values */
+  height: 10px;
+  flex-shrink: 0;
+}
+
+.analytics-skeleton-beta-cell {
+  width: 40px;              /* .dumbbell-beta */
+  height: 10px;
+  flex-shrink: 0;
+}
+
+.analytics-skeleton-footnote {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #edf2f7;   /* .risk-footnote */
+}
+
+.analytics-skeleton-footnote .skeleton {
+  width: 74%;
+  height: 9px;
+}
+
+/* --- movers card --- */
+
+.analytics-skeleton-movers-heading {
+  margin-bottom: 16px;      /* .movers-card h3 */
+}
+
+.analytics-skeleton-mover-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;            /* .mover-row */
+  border-radius: 10px;
+  background-color: #f8fafc;
+}
+
+.analytics-skeleton-mover-row + .analytics-skeleton-mover-row {
+  margin-top: 12px;         /* .movers-list gap */
+}
+
+.analytics-skeleton-pill {
+  width: 58px;
+  height: 20px;             /* .mover-pill */
+  border-radius: 999px;
+}
+
+.analytics-skeleton-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.analytics-skeleton-stack-end {
+  align-items: flex-end;
+  flex: 0 0 auto;
+}
+
+.analytics-skeleton-mover-symbol { width: 52px; height: 12px; }
+.analytics-skeleton-mover-name   { width: 96px; height: 9px; }
+.analytics-skeleton-mover-price  { width: 68px; height: 12px; }
+.analytics-skeleton-mover-change { width: 46px; height: 9px; }
+
+@media (max-width: 720px) {
+  .analytics-skeleton-beta-cell {
+    display: none;          /* .dumbbell-beta hides at this width */
+  }
+
+  .analytics-skeleton-values {
+    width: 96px;
+  }
+}

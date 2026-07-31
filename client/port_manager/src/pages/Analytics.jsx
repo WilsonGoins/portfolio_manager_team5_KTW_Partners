@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { RiskCard } from "../components/analytics/RiskCard";
 import { BiggestMoversCard } from "../components/analytics/BiggestMoversCard";
+import { AnalyticsSkeleton } from "../components/analytics/AnalyticsSkeleton";
 import { useDataFreshness } from "../context/DataFreshness";
 import "./Analytics.css";
 
@@ -96,25 +97,29 @@ export function Analytics() {
           a failure on one endpoint leaves the other card intact. */}
       <div className="analytics-main-content">
         {isLoading ? (
-          <MessageCard className="risk-card" title="Portfolio Risk" message="Loading risk data..." />
-        ) : riskError ? (
-          <MessageCard className="risk-card" title="Portfolio Risk" message={`Error loading data: ${riskError}`} tone="error" />
-        ) : !hasPositions ? (
-          <MessageCard
-            className="risk-card"
-            title="Portfolio Risk"
-            message="No holdings yet. Buy a security to see how much market risk your portfolio carries."
-          />
+          // one skeleton for both slots: it renders the two cards itself, so the
+          // grid keeps the same two children it will have once the data lands
+          <AnalyticsSkeleton />
         ) : (
-          <RiskCard data={riskData} />
-        )}
+          <>
+            {riskError ? (
+              <MessageCard className="risk-card" title="Portfolio Risk" message={`Error loading data: ${riskError}`} tone="error" />
+            ) : !hasPositions ? (
+              <MessageCard
+                className="risk-card"
+                title="Portfolio Risk"
+                message="No holdings yet. Buy a security to see how much market risk your portfolio carries."
+              />
+            ) : (
+              <RiskCard data={riskData} />
+            )}
 
-        {isLoading ? (
-          <MessageCard className="movers-card" title="Biggest Movers" message="Loading movers..." />
-        ) : moversError ? (
-          <MessageCard className="movers-card" title="Biggest Movers" message={`Error loading data: ${moversError}`} tone="error" />
-        ) : (
-          <BiggestMoversCard data={moversData} />
+            {moversError ? (
+              <MessageCard className="movers-card" title="Biggest Movers" message={`Error loading data: ${moversError}`} tone="error" />
+            ) : (
+              <BiggestMoversCard data={moversData} />
+            )}
+          </>
         )}
       </div>
     </div>
