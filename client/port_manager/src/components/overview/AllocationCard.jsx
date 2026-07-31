@@ -47,6 +47,17 @@ export function AllocationCard({ dataByType, dataBySector }) {
     [activeData],
   );
 
+  // The list below the chart reads largest-first, which is the order someone
+  // scanning for "where is my money" wants. Sorted here rather than upstream on
+  // purpose: the colours above are keyed to each slice's position in the API's
+  // label-sorted list, so sorting before the fill is attached would repaint the
+  // whole chart whenever two slices swapped places. Sorting a copy afterwards
+  // reorders the rows while every slice keeps the colour it already had.
+  const legendData = useMemo(
+    () => [...chartData].sort((a, b) => b.allocation_pct - a.allocation_pct),
+    [chartData],
+  );
+
   return (
     <div className="card allocation-card">
       <div className="allocation-card-header">
@@ -108,7 +119,7 @@ export function AllocationCard({ dataByType, dataBySector }) {
             </div>
 
             <div className="allocation-rows">
-              {chartData.map((entry) => (
+              {legendData.map((entry) => (
                 <div key={entry.label} className="allocation-row">
                   <div className="allocation-identity">
                     <span className="legend-icon" style={{ backgroundColor: entry.fill }} />
