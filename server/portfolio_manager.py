@@ -3,12 +3,10 @@ from db_manager import DBManager
 from datetime import datetime
 from db_items import Holding, Transaction
 
-# Where a portfolio beta stops being one risk label and starts being the next.
-# A beta of 1.0 is the market itself, so the middle band is deliberately centred
-# on it -- wide enough that a portfolio that merely tracks the market isn't
-# labelled aggressive for rounding.
+
 _CONSERVATIVE_BETA_CEILING = 0.8
 _MARKET_BETA_CEILING = 1.2
+_RISK_HIGHLIGHT_MIN_GAP_PCT = 3.0       # difference threshold between a holding's share of the risk and a holidng's share of the portfolio
 
 
 class PortfolioManager:
@@ -336,8 +334,10 @@ class PortfolioManager:
     #   {portfolio_beta: 1.05, risk_level: "Market", coverage_pct: 92.4,
     #    total_value: ..., covered_value: ...,
     #    holdings: [{symbol, name, h_type, beta, market_value, weight_pct,
-    #                contribution}, ...],
-    #    unpriced: ["XYZ", ...]}
+    #                contribution, risk_share_pct}, ...],
+    #    unpriced: ["XYZ", ...],
+    #    highlight: {symbol, name, weight_pct, risk_share_pct, direction} | None}
+    # holdings is sorted by contribution, so the biggest sources of risk lead.
 
     def CalculatePortfolioRisk(self):
         dbHoldingsRes = self.db_manager.get_holdings()
@@ -395,6 +395,13 @@ class PortfolioManager:
             row["contribution"] = weight * row["beta"]
 
         portfolio_beta = sum(row["contribution"] for row in rows)
+
+        # each holding's share of the portfolio's beta, as a percent
+        # An unrated holding lands = 0, like cash does,
+        for row in rows:
+            row["risk_share_pct"] = (row["contribution"] / portfolio_beta * 100
+                                     ) if portfolio_beta else 0
+
         rows.sort(key=lambda row: row["contribution"], reverse=True)
 
         return {
@@ -405,6 +412,37 @@ class PortfolioManager:
             "covered_value": covered_value,
             "holdings": rows,
             "unpriced": unpriced,
+            "highlight": self.FindRiskHighlight(rows),
+        }
+
+    # Picks the holding whose share of the risk is furthest from its share of the
+    # money, for information for user
+    # Returns the numbers, not the wording, so the copy stays in the component.
+    #
+    # Cash is skipped (it is 0 beta by definition, so it always diverges and never
+    # says anything), and so are unrated holdings (no risk share to compare).
+    # Returns None when nothing diverges enough to be worth a claim.
+
+    def FindRiskHighlight(self, rows):
+        candidates = [row for row in rows
+                      if row["beta"] is not None and row["h_type"] != "Cash"]
+        if not candidates:
+            return None
+
+        top = max(candidates,
+                  key=lambda row: abs(row["risk_share_pct"] - row["weight_pct"]))
+
+        gap = top["risk_share_pct"] - top["weight_pct"]
+        if abs(gap) < _RISK_HIGHLIGHT_MIN_GAP_PCT:
+            return None
+
+        return {
+            "symbol": top["symbol"],
+            "name": top["name"],
+            "weight_pct": top["weight_pct"],
+            "risk_share_pct": top["risk_share_pct"],
+            # which way to word it: "but" vs "but only"
+            "direction": "above" if gap > 0 else "below",
         }
 
     # Turns a beta into the plain-language bucket the UI can label it with. The
