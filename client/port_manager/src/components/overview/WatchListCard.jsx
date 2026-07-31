@@ -1,8 +1,15 @@
 import React from 'react';
 import './WatchListCard.css';
+import { useNavigate } from 'react-router-dom';
 
 export function WatchListCard({ data }) {
   const movers = data ?? [];
+  const navigate = useNavigate();
+
+
+  const handleRowClick = (symbol) => {
+      navigate(`/details/${symbol}`);
+  };
 
   return (
     <div className="card watchlist-card">
@@ -17,7 +24,7 @@ export function WatchListCard({ data }) {
           </div>
 
           {movers.map((stock) => (
-            <div key={stock.symbol} className="watchlist-item">
+            <div key={stock.symbol} className="watchlist-item" onClick={() => {handleRowClick(stock.symbol)}}>
               <div className="stock-identity">
                 <span className="stock-symbol">{stock.symbol}</span>
                 <span className="stock-name" title={stock.name}>{stock.name}</span>

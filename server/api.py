@@ -87,6 +87,17 @@ def cash():
         return jsonify({"error": "Failed to fetch cash amount"}), 500
 
 
+@app.route("/api/news")
+def get_news():
+    """Returns news from yahoo"""
+    try:
+        return jsonify(portfolio_manager.get_news())
+    except Exception as e:
+        app.logger.error(f"Failed to fetch news from yahoo: {
+                         e}", exc_info=True)
+        return jsonify({"error": "Failed to fetch news"}), 500
+
+
 @app.route("/api/top-movers")
 def get_top_movers():
     """Top 5 movers, reshaped to match WatchListCard's expected {symbol, price, change} shape."""
@@ -106,6 +117,7 @@ def search():
         return jsonify([])
 
     try:
+        # TODO call from portfolio_manager instead of finance_manager
         results = finance_manager.search_securities(query)
         return jsonify(results)
     except Exception as e:

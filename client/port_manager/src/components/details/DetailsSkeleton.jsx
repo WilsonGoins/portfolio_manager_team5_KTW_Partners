@@ -1,4 +1,5 @@
 import React from 'react';
+import '../explore/Skeleton.css';
 
 export function DetailsSkeleton() {
   return (
