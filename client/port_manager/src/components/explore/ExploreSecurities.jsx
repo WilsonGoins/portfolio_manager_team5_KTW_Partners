@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search } from './Search';
 import { SecurityCard } from './SecurityCard';
+import { SecurityCardSkeleton } from './SecurityCardSkeleton';
+
 import "./ExploreSecurities.css";
 
 export function ExploreSecurities() {
@@ -114,11 +116,19 @@ export function ExploreSecurities() {
       />
 
       <div className="securities">
-        {!loading && securities.length === 0 ? (
+        {loading ? (
+          Array.from({ length: 3 }).map((_, idx) => (
+            <SecurityCardSkeleton key={idx} />
+          ))
+        ) : securities.length === 0 ? (
           <p className="no-results">No securities found.</p>
         ) : (
           securities.map((security) => (
-            <SecurityCard key={security.symbol} data={security} onClick={() => handleDetails(security.symbol)}/>
+            <SecurityCard 
+              key={security.symbol} 
+              data={security} 
+              onClick={() => handleDetails(security.symbol)}
+            />
           ))
         )}
       </div>

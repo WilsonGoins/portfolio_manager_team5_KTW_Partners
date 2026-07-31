@@ -1,26 +1,26 @@
 import { useEffect, useState } from 'react';
 import { NewsArticleCard } from './NewsArticleCard.jsx';
+import { NewsArticleSkeleton } from './NewsArticleSkeleton.jsx';
 import './ExploreNews.css';
 
 export function ExploreNews() {
   const [articles, setArticles] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchNews = async () => {
       try {
+        setLoading(true);
         const res = await fetch("api/news");
         const data = await res.json();
-
         setArticles(data);
-      }
-      catch (err) {
+      } catch (err) {
         console.error('Failed to get news:', err);
-      }
-      finally {
-
+      } finally {
+        setLoading(false);
       }
     };
-  fetchNews();
+    fetchNews();
   }, []);
 
   return (
@@ -29,8 +29,12 @@ export function ExploreNews() {
         <h2>Market News</h2>
       </div>
 
-      {articles && articles.length > 0 ? (
-        articles.map(article => (
+      {loading ? (
+        Array.from({ length: 3 }).map((_, idx) => (
+          <NewsArticleSkeleton key={idx} />
+        ))
+      ) : articles && articles.length > 0 ? (
+        articles.map((article) => (
           <NewsArticleCard key={article.title} data={article} />
         ))
       ) : (
