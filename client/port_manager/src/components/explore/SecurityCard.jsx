@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ResponsiveContainer, AreaChart, Area, Tooltip, YAxis, XAxis } from 'recharts';
+import { formatHoldingType } from '../../utils/holdingType';
 import './SecurityCard.css';
 
 export function SecurityCard({ data, onClick }) {
@@ -147,7 +148,7 @@ export function SecurityCard({ data, onClick }) {
         <div>
           <div className="security-title-group">
             <span className="security-symbol">{symbol}</span>
-            <span className="security-type">{h_type}</span>
+            <span className="security-type">{formatHoldingType(h_type)}</span>
           </div>
           <p className="security-name">{name}</p>
         </div>

@@ -1,0 +1,40 @@
+.analytics-page {
+  padding: 24px;
+  background-color: #f8f9fa;
+  font-family: 'Public Sans', sans-serif;
+  min-height: 100vh;
+}
+
+.analytics-page-title {
+  font-size: 1.5rem;
+  color: #1a202c;
+  font-weight: 600;
+  margin: 0 0 24px 0;
+}
+
+/* Cards are direct grid items so a second row starts at one shared y no matter
+   how tall the row above it grows -- the same reason Overview is one grid rather
+   than two columns. align-items: start keeps each card at its natural height.
+
+   The risk card is wide by nature: the dumbbell needs room for a symbol, a track,
+   two values and a beta on one line. So the first column is the wide one, and the
+   narrower second column is where a summary-shaped card would go. */
+.analytics-main-content {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+/* Until there is a second card, the one card holds the wide column rather than
+   stretching across a layout it wasn't designed for. */
+.analytics-main-content > :only-child {
+  grid-column: 1 / -1;
+  max-width: 860px;
+}
+
+@media (max-width: 900px) {
+  .analytics-main-content {
+    grid-template-columns: 1fr;
+  }
+}

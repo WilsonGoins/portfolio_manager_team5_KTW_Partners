@@ -46,6 +46,7 @@ export function Navbar() {
         <NavLink to="/" end>Overview</NavLink>
         <NavLink to="/explore">Explore</NavLink>
         <NavLink to="/transactions">Transactions</NavLink>
+        <NavLink to="/analytics">Advanced Analytics</NavLink>
       </nav>
 
       <div className="navbar-freshness">

@@ -10,6 +10,7 @@ const Overview = lazy(() => import("./pages/Overview").then((m) => ({ default: m
 const Explore = lazy(() => import("./pages/Explore").then((m) => ({ default: m.Explore })));
 const Transactions = lazy(() => import("./pages/Transactions").then((m) => ({ default: m.Transactions })));
 const Details = lazy(() => import("./pages/Details").then((m) => ({ default: m.Details })));
+const Analytics = lazy(() => import("./pages/Analytics").then((m) => ({ default: m.Analytics })));
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
           <Route index element={<Suspense fallback={null}><Overview /></Suspense>} />
           <Route path="explore" element={<Suspense fallback={null}><Explore /></Suspense>} />
           <Route path="transactions" element={<Suspense fallback={null}><Transactions /></Suspense>} />
+          <Route path="analytics" element={<Suspense fallback={null}><Analytics /></Suspense>} />
           <Route path="details/:symbol" element={<Suspense fallback={null}><Details /></Suspense>} />
 
           <Route path="*" element={<h2>404: Page Not Found</h2>} />

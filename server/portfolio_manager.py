@@ -413,6 +413,13 @@ class PortfolioManager:
             "holdings": rows,
             "unpriced": unpriced,
             "highlight": self.FindRiskHighlight(rows),
+            # the thresholds risk_level was decided with, so the meter can shade
+            # the same bands it labels. Sent rather than repeated in the frontend
+            # so tuning the constants above can't leave the two disagreeing.
+            "beta_bands": {
+                "conservative_ceiling": _CONSERVATIVE_BETA_CEILING,
+                "market_ceiling": _MARKET_BETA_CEILING,
+            },
         }
 
     # Picks the holding whose share of the risk is furthest from its share of the
