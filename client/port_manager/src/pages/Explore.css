@@ -24,3 +24,22 @@
   top: 24px;
 }
 
+.section-header {
+  margin-bottom: 1.25rem;
+}
+
+.section-header h2 {
+  font-family: inherit;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.section-subtitle {
+  font-size: 0.85rem;
+  color: #666;
+  margin-top: 0.25rem;
+  display: block;
+}

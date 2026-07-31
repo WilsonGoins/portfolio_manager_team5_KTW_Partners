@@ -19,6 +19,7 @@ function ErrorCard({ className, title, message }) {
 export function Overview() {
   const [holdingsData, setHoldingsData] = useState([]);
   const [allocationData, setAllocationData] = useState([]);
+  const [allocationDataBySector, setAllocationDataBySector] = useState([]);
   const [portfolioHistory, setPortfolioHistory] = useState([]);
   const [portfolioSummary, setPortfolioSummary] = useState(null);
   const [topMovers, setTopMovers] = useState([]);
@@ -56,6 +57,7 @@ export function Overview() {
 
         setHoldingsData(overviewData.HoldingsTable || []);
         setAllocationData(overviewData.Allocations || []);
+        setAllocationDataBySector(overviewData.AllocationsBySector || []);
         setPortfolioHistory(overviewData.PortfolioHistory || []);
         setPortfolioSummary(overviewData.PortfolioSummary || null);
         setTopMovers(overviewData.TopMovers || []);
@@ -100,7 +102,7 @@ export function Overview() {
             <PortfolioValueCard data={portfolioHistory} summary={portfolioSummary} />
             <WatchListCard data={topMovers} />
             <HoldingsCard data={holdingsData} />
-            <AllocationCard data={allocationData} />
+            <AllocationCard dataByType={allocationData} dataBySector={allocationDataBySector} />
           </>
         )}
       </div>

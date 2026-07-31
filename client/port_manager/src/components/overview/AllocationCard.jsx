@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { formatHoldingType } from '../../utils/holdingType';
 import './AllocationCard.css';
@@ -28,58 +28,84 @@ function AllocationTooltip({ active, payload }) {
   );
 }
 
-export function AllocationCard({ data }) {
-  // colour is keyed to the slice's position in the type-sorted list the API sends,
-  // so a type keeps its colour even as its share of the portfolio moves around
+// dataByType groups holdings by asset type (Cash/Equity/ETF/...); dataBySector
+// groups the same holdings by Yahoo Finance sector (Technology/Healthcare/...).
+// Both are already-aggregated [{label, market_value, allocation_pct}] lists
+// from the backend, so this component just switches which one it renders.
+export function AllocationCard({ dataByType, dataBySector }) {
+  const [groupBy, setGroupBy] = useState('type');
+
+  const activeData = groupBy === 'type' ? dataByType : dataBySector;
+
+  // colour is keyed to the slice's position in the label-sorted list the API
+  // sends, so a slice keeps its colour even as its share of the portfolio moves
   const chartData = useMemo(
-    () => (data ?? []).map((slice, index) => ({
+    () => (activeData ?? []).map((slice, index) => ({
       ...slice,
       fill: COLORS[index % COLORS.length],
     })),
-    [data],
+    [activeData],
   );
-
-  if (!chartData.length) {
-    return (
-      <div className="card allocation-card">
-        <h3>Allocation</h3>
-        <p className="allocation-empty-message">No allocation data available.</p>
-      </div>
-    );
-  }
 
   return (
     <div className="card allocation-card">
-      <h3>Allocation</h3>
-      <div className="allocation-chart-container" style={{ height: '220px' }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={chartData}
-              cx="50%"
-              cy="50%"
-              innerRadius={60}
-              outerRadius={90}
-              paddingAngle={0}
-              dataKey="market_value"
-              nameKey="h_type"
-              startAngle={90}
-              endAngle={450}
-            >
-              {chartData.map((entry) => (
-                <Cell key={entry.h_type} fill={entry.fill} stroke="none" />
-              ))}
-            </Pie>
-            <Tooltip content={<AllocationTooltip />} />
-          </PieChart>
-        </ResponsiveContainer>
+      <div className="allocation-card-header">
+        <h3>Allocation</h3>
+        <div className="allocation-toggle" role="tablist" aria-label="Group allocation by">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={groupBy === 'type'}
+            className={`allocation-toggle-btn ${groupBy === 'type' ? 'active' : ''}`}
+            onClick={() => setGroupBy('type')}
+          >
+            Type
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={groupBy === 'sector'}
+            className={`allocation-toggle-btn ${groupBy === 'sector' ? 'active' : ''}`}
+            onClick={() => setGroupBy('sector')}
+          >
+            Sector
+          </button>
+        </div>
       </div>
 
-      <div className="allocation-table">
-        <div className="allocation-header">
-          <span>Type</span>
-          <span>Value</span>
-        </div>
+      {!chartData.length ? (
+        <p className="allocation-empty-message">No allocation data available.</p>
+      ) : (
+        <>
+          <div className="allocation-chart-container" style={{ height: '220px' }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={chartData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={90}
+                  paddingAngle={0}
+                  dataKey="market_value"
+                  nameKey="label"
+                  startAngle={90}
+                  endAngle={450}
+                >
+                  {chartData.map((entry) => (
+                    <Cell key={entry.label} fill={entry.fill} stroke="none" />
+                  ))}
+                </Pie>
+                <Tooltip content={<AllocationTooltip />} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="allocation-table">
+            <div className="allocation-header">
+              <span>{groupBy === 'type' ? 'Type' : 'Sector'}</span>
+              <span>Value</span>
+            </div>
 
         {chartData.map((entry) => (
           <div key={entry.h_type} className="allocation-row">
@@ -97,3 +123,4 @@ export function AllocationCard({ data }) {
     </div>
   );
 }
+

@@ -87,6 +87,17 @@ def cash():
         return jsonify({"error": "Failed to fetch cash amount"}), 500
 
 
+@app.route("/api/news")
+def get_news():
+    """Returns news from yahoo"""
+    try:
+        return jsonify(portfolio_manager.get_news())
+    except Exception as e:
+        app.logger.error(f"Failed to fetch news from yahoo: {
+                         e}", exc_info=True)
+        return jsonify({"error": "Failed to fetch news"}), 500
+
+
 @app.route("/api/top-movers")
 def get_top_movers():
     """Top 5 movers, reshaped to match WatchListCard's expected {symbol, price, change} shape."""
@@ -117,12 +128,25 @@ def search():
         return jsonify([])
 
     try:
+        # TODO call from portfolio_manager instead of finance_manager
         results = finance_manager.search_securities(query)
         return jsonify(results)
     except Exception as e:
         app.logger.error(f"Failed to search securities for '{
             query}': {e}", exc_info=True)
         return jsonify({"error": "Failed to search securities"}), 500
+
+
+@app.route("/api/analytics/movers")
+def analytics_movers():
+    """Analytics page: the current holding with the biggest gain and the one
+    with the biggest loss, by percent move since yesterday's close."""
+    try:
+        return jsonify(portfolio_manager.GetBiggestGainerAndLoser())
+    except Exception as e:
+        app.logger.error(f"Failed to get biggest gainer/loser: {
+            e}", exc_info=True)
+        return jsonify({"error": "Failed to fetch biggest gainer/loser"}), 500
 
 
 @app.route("/api/buy", methods=["POST"])

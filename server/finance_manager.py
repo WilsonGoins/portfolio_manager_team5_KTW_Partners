@@ -64,7 +64,8 @@ class _TTLCache:
             # still over: drop the oldest until we fit
             overflow = len(self._entries) - self._max_entries
             if overflow > 0:
-                oldest = sorted(self._entries, key=lambda k: self._entries[k][1])
+                oldest = sorted(
+                    self._entries, key=lambda k: self._entries[k][1])
                 for k in oldest[:overflow]:
                     del self._entries[k]
 
@@ -146,6 +147,10 @@ class FinanceManager:
                 "name": info.get("longName") or info.get("shortName"),
                 "stock_type": info.get("quoteType"),
                 "previous_close": info.get("previousClose"),
+                # ETFs don't carry a GICS "sector" the way equities do, so fall
+                # back to Yahoo's fund "category" (e.g. "Large Growth"), and
+                # finally to "Other" for anything with neither (e.g. cash).
+                "sector": info.get("sector") or info.get("category") or "Other",
                 "beta": self._extract_beta(info),
             }
         except Exception as e:
@@ -367,3 +372,59 @@ class FinanceManager:
             }
         except Exception as e:
             self.logger.error(f"Error building chart history: {e}")
+
+    def get_news(self, limit: int = 5) -> list[dict]:
+        """
+        Fetches news formatted specifically for a lightweight UI card.
+        Falls back through standard market tickers if the target ticker has no news.
+        """
+        fallback_tickers = ["SPY", "AAPL", "MSFT", "NVDA", "TSX"]
+        results = yf.screen("day_gainers", count=limit)
+        quotes = results.get("quotes", [])
+        candidate_tickers = []
+
+        for q in quotes:
+            candidate_tickers.append(q.get("symbol"))
+        candidate_tickers.extend(fallback_tickers)
+
+        card_items = []
+        for symbol in candidate_tickers:
+            if not symbol:
+                continue
+            try:
+                news_item = yf.Ticker(symbol.strip().upper()).news[0]
+                if not news_item:
+                    continue
+
+                content = news_item.get("content", news_item)
+                title = content.get("title")
+
+                link = content.get("canonicalUrl", {}).get(
+                    "url") or content.get("link")
+
+                provider = content.get("provider", {}).get(
+                    "displayName") or content.get("publisher", "Yahoo Finance")
+
+                image_url = None
+                thumbnail_data = content.get(
+                    "thumbnail") or news_item.get("thumbnail")
+
+                if isinstance(thumbnail_data, dict):
+                    resolutions = thumbnail_data.get("resolutions", [])
+                    if resolutions and len(resolutions) > 0:
+                        image_url = resolutions[0].get("url")
+                    else:
+                        image_url = thumbnail_data.get("url")
+
+                if title and link:
+                    card_items.append({
+                        "title": title,
+                        "publisher": provider,
+                        "url": link,
+                        "image_url": image_url,
+                        "ticker": symbol.upper()
+                    })
+
+            except Exception:
+                continue
+        return card_items

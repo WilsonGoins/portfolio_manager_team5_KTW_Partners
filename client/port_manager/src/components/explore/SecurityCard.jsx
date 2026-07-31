@@ -248,7 +248,7 @@ export function SecurityCard({ data, onClick }) {
       </div>
 
       <div className="expand-prompt">
-        Click card to buy
+        Click to view details.
       </div>
     </div>
   );

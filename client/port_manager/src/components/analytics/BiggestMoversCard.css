@@ -1,0 +1,107 @@
+.movers-card h3 {
+  margin-bottom: 16px;
+}
+
+.movers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mover-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 10px;
+}
+
+.mover-row-gainer {
+  background-color: #ecfdf5;
+}
+
+.mover-row-loser {
+  background-color: #fef2f2;
+}
+
+.mover-pill {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.mover-pill-gainer {
+  color: #ffffff;
+  background-color: #10b981;
+}
+
+.mover-pill-loser {
+  color: #ffffff;
+  background-color: #ef4444;
+}
+
+.mover-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;      /* lets the name ellipsis instead of stretching the row */
+}
+
+.mover-symbol {
+  font-weight: 600;
+  font-size: 0.975rem;
+  color: #1a202c;
+}
+
+.mover-name {
+  font-size: 0.8125rem;
+  color: #718096;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mover-prices {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.mover-price {
+  font-size: 0.975rem;
+  color: #1a202c;
+  font-variant-numeric: tabular-nums;
+}
+
+.mover-change {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.mover-row-gainer .mover-change {
+  color: #10b981;
+}
+
+.mover-row-loser .mover-change {
+  color: #ef4444;
+}
+
+.mover-empty {
+  color: #718096;
+  font-size: 0.875rem;
+  font-style: italic;
+}
+
+.movers-empty-message {
+  margin: 0;
+  padding: 16px 0;
+  color: #718096;
+  font-size: 0.875rem;
+}
