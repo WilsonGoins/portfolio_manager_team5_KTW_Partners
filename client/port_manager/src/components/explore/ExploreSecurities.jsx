@@ -98,20 +98,20 @@ export function ExploreSecurities() {
 
   return (
     <div className="explore-securities-container">
+
+      {error && <div className="error-banner">{error}</div>}
+
+      <div className="section-header">
+        <h2>{showingQueryResults ? `Results for "${searchText}"` : "Top Market Movers"}</h2>
+        {!showingQueryResults && <span className="section-subtitle">Today's top performing assets</span>}
+      </div>
+
       <Search
         query={searchQuery}
         onQueryChange={handleQueryChange}
         onSearch={handleBackendSearch}
         isLoading={loading}
       />
-
-      {error && <div className="error-banner">{error}</div>}
-
-      {showingQueryResults ? (
-      <h3>Search results for {searchText}</h3>
-      ) : (
-      <h3>Top 5 Movers Of The Day...</h3>
-      )}
 
       <div className="securities">
         {!loading && securities.length === 0 ? (
