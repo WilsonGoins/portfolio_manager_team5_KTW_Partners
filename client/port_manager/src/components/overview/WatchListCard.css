@@ -1,12 +1,28 @@
-/* The watchlist is a fixed 5 rows while the chart beside it is taller, so let it
-   fill the row's height. Otherwise the leftover space reads as a stray gap above
-   the Allocation card rather than as part of this card. */
+/* The watchlist is shorter than the chart beside it, so let it fill the row's
+   height. Otherwise the leftover space reads as a stray gap above the
+   Allocation card rather than as part of this card. */
 .watchlist-card {
   align-self: stretch;
 }
 
 .watchlist-card h3 {
   margin-bottom: 16px;
+}
+
+/* Capped rather than left to grow, so adding entries scrolls the list instead
+   of making this card -- and with it the whole top row -- taller. The cap is
+   set a little above what today's five rows occupy, so nothing scrolls until
+   the list actually outgrows the chart beside it. Raise it to trade row
+   alignment for showing more at once. */
+.watchlist-list {
+  max-height: 320px;
+  overflow-y: auto;
+  /* The rows below bleed 8px each side so their hover fill and dividers reach
+     into the card's padding. Left alone that would spill past a scroll
+     container and raise a horizontal scrollbar, so widen the scroll area by
+     the same 8px and pad it back -- the rows then land exactly on its edges. */
+  margin: 0 -8px;
+  padding: 0 8px;
 }
 
 /* A labelled header plus hairline dividers give the rows something to sit
@@ -21,6 +37,13 @@
   color: #a0aec0;
   font-size: 13px;
   font-weight: 500;
+  /* the header scrolls with the list it sits in, so pin it -- otherwise the
+     column labels disappear as soon as you scroll, unlike the holdings grid.
+     Opaque because rows pass underneath it. */
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: #ffffff;
 }
 
 .watchlist-item {

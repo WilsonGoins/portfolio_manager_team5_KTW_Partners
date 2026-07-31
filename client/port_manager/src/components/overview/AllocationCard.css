@@ -2,12 +2,62 @@
   margin-bottom: 0;
 }
 
+.allocation-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.allocation-toggle {
+  display: flex;
+  background-color: #f7fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 2px;
+}
+
+.allocation-toggle-btn {
+  border: none;
+  background: transparent;
+  color: #718096;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  padding: 4px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.allocation-toggle-btn:hover {
+  color: #1a202c;
+}
+
+.allocation-toggle-btn.active {
+  background-color: #ffffff;
+  color: #008080;
+  box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.06);
+}
+
 /* Same header + hairline-divider structure as the watchlist, so the two
    cards in this column read as one system. */
 .allocation-table {
   margin-top: 16px;
   border-top: 1px solid #e2e8f0;
   padding-top: 4px;
+}
+
+/* Capped rather than left to grow, so a long sector/type breakdown scrolls
+   instead of pushing the page down past where the Holdings card ends.
+   Raise this if you'd rather show more rows before it scrolls. */
+.allocation-rows {
+  max-height: 220px;
+  overflow-y: auto;
+  /* rows bleed 8px each side for their hover fill -- widen the scroll area to
+     match and pad it back so they land exactly on its edges, same trick as
+     the watchlist list. */
+  margin: 0 -8px;
+  padding: 0 8px;
 }
 
 .allocation-header {

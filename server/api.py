@@ -1,5 +1,7 @@
 import logging
 import os
+import time
+from threading import Lock
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from db_manager import DBManager
@@ -21,6 +23,29 @@ finance_manager = FinanceManager(flask_logger=app.logger)
 portfolio_manager = PortfolioManager(db_manager, finance_manager)
 
 
+# Refreshing drops the quote cache, so it is the one request that can hit Yahoo
+# as fast as somebody can click, and enough of those in a row gets us throttled.
+# One real refresh per window; the clicks in between are answered from cache.
+_REFRESH_MIN_INTERVAL_SECONDS = 10
+_last_refresh_at = None
+_refresh_lock = Lock()
+
+
+def _claim_refresh() -> bool:
+    """Whether this request gets to do a real refresh. Records the time when it
+    does, so callers must only ask when they intend to go through with it."""
+    global _last_refresh_at
+
+    now = time.monotonic()
+    with _refresh_lock:
+        if (_last_refresh_at is not None
+                and now - _last_refresh_at < _REFRESH_MIN_INTERVAL_SECONDS):
+            return False
+
+        _last_refresh_at = now
+        return True
+
+
 @app.route("/")
 def hello_world():
     return jsonify({"message": "Hello, World!", "status": "success"})
@@ -31,6 +56,13 @@ def overview():
     """Returns everything the Overview page renders: HoldingsTable, Allocations,
     PortfolioSummary, PortfolioHistory, and TopMovers."""
     try:
+        # the navbar's Refresh button means "go and fetch", so it drops the quote
+        # cache first rather than being served whatever is still inside its TTL --
+        # but no more often than the throttle above allows. A refused refresh
+        # still returns the page, just from cache.
+        if request.args.get("refresh") == "true" and _claim_refresh():
+            finance_manager.empty_cache()
+
         return jsonify(portfolio_manager.GetOverviewData())
     except Exception as e:
         app.logger.error(f"Failed to get overview data: {e}", exc_info=True)

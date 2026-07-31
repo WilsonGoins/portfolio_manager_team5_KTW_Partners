@@ -20,10 +20,14 @@
     rgba(255, 255, 255, 0.65) 50%,
     rgba(255, 255, 255, 0) 100%
   );
-  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  animation: overview-skeleton-shimmer 1.4s ease-in-out infinite;
 }
 
-@keyframes skeleton-shimmer {
+/* Prefixed because @keyframes names are global with no scoping: Details.css
+   declares its own skeleton-shimmer, and whichever chunk loads last would win
+   for both pages. Sharing the name left this animation running the details
+   page's colour cycle, which never moves the sweep and reads as no shimmer. */
+@keyframes overview-skeleton-shimmer {
   100% { transform: translateX(100%); }
 }
 
@@ -44,7 +48,7 @@
   border-radius: 4px;
 }
 
-.skeleton-text-sm {
+.overview-skeleton-text-sm {
   height: 10px;
 }
 
@@ -87,7 +91,7 @@
   height: 27px;
 }
 
-.skeleton-chart {
+.overview-skeleton-chart {
   height: 200px;         /* .chart-container */
   margin-top: 12px;
   border-radius: 8px;

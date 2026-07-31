@@ -7,10 +7,16 @@
 
 /* The four cards are direct grid items, so row 2 (Holdings / Allocation) starts
    at one shared y regardless of how tall row 1 is. align-items: start keeps each
-   card at its natural height instead of stretching it to fill its row. */
+   card at its natural height instead of stretching it to fill its row.
+
+   The left column carries the two things that want width -- the value chart and
+   the eight-column holdings table -- while the donut and the watchlist are both
+   narrow by nature and were left holding empty space. Hence the lopsided split.
+   The right column keeps a floor so it can never squeeze below the 180px donut
+   plus the card's padding. */
 .overview-main-content {
   display: grid;
-  grid-template-columns: 1.6fr 1fr;
+  grid-template-columns: 2.2fr minmax(300px, 1fr);
   gap: 24px;
   align-items: start;
 }

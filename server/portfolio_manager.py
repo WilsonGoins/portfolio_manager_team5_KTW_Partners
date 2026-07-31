@@ -14,7 +14,8 @@ class PortfolioManager:
     # Retrieves all data needed for overview page
     # Returns in a dict of form
         # {HoldingsTable: [{symbol: AAPL, ..., market_value: ..., change_since_close: ..., allocation_pct: 12.5}, {symbol: NVDA, ...}],
-        #  Allocations: [{h_type: ETF, market_value: 46559.62, allocation_pct: 36.0}, {h_type: Cash, ...}],
+        #  Allocations: [{label: ETF, market_value: 46559.62, allocation_pct: 36.0}, {label: Cash, ...}],
+        #  AllocationsBySector: [{label: Technology, market_value: 46559.62, allocation_pct: 36.0}, ...],
         #  PortfolioSummary: {total_value: ..., day_change: ..., day_change_pct: ...},
         #  PortfolioHistory: [{date: "2026-07-27", value: ...}, ...],
         #  TopMovers: [{symbol: ..., name: ..., price: ..., change: ...}, ...],
@@ -39,16 +40,21 @@ class PortfolioManager:
             if (yahooRes is None):
                 raise ValueError("Holding must be a valid security.")
             holdingsWithPrice.append({"symbol": holding.ticker, "name": holding.name, "h_type": holding.h_type,
-                                      "num_shares": holding.quantity_shares, "curr_price": yahooRes["current_price"], "previous_close": yahooRes["previous_close"]})
+                                      "num_shares": holding.quantity_shares, "curr_price": yahooRes["current_price"],
+                                      "previous_close": yahooRes["previous_close"], "sector": yahooRes.get("sector") or "Other"})
 
         # now clean up the data to have all the necessary information (cash is folded in as its own holding)
         enrichedHoldings = self.CalculateHoldingInfo(holdingsWithPrice)
         finalRes["HoldingsTable"] = enrichedHoldings
 
-        # now get the allocations for the allocations graph
-        allocations = self.CalculateAllocationByType(
-            enrichedHoldings)       # cash is passed in as a holding here
+        # now get the allocations for the allocations graph.
+        # two breakdowns of the same enriched holdings, so the Overview page's
+        # toggle can switch views without an extra round trip.
+        allocations = self.CalculateAllocationByField(
+            enrichedHoldings, "h_type")       # cash is passed in as a holding here
         finalRes["Allocations"] = allocations
+        finalRes["AllocationsBySector"] = self.CalculateAllocationByField(
+            enrichedHoldings, "sector")
 
         # headline numbers for the portfolio value card
         summary = self.CalculatePortfolioSummary(enrichedHoldings)
@@ -242,16 +248,25 @@ class PortfolioManager:
             curr_price = holding["curr_price"]
             previous_close = holding["previous_close"]
 
-            market_value = num_shares * curr_price
-            change_since_close = num_shares * (curr_price - previous_close)
+            # A throttled Yahoo answers with fields missing rather than raising,
+            # so a quote can arrive with no previous close, or no price at all.
+            # The row keeps whatever it does know and carries "--" for the rest,
+            # the same way the cash row does, instead of failing the whole page.
+            priced = curr_price is not None
+            comparable = priced and bool(previous_close)
+
+            market_value = num_shares * curr_price if priced else 0
+            change_since_close = (num_shares * (curr_price - previous_close)
+                                  if comparable else "--")
             change_pct_since_close = ((curr_price - previous_close) /
-                                      previous_close * 100) if previous_close else 0
+                                      previous_close * 100) if comparable else "--"
             total_value += market_value
 
             enriched.append({
                 "symbol": holding["symbol"],
                 "name": holding["name"],
                 "h_type": holding["h_type"],
+                "sector": holding.get("sector", "Other"),
                 "num_shares": num_shares,
                 "curr_price": curr_price,
                 "previous_close": previous_close,
@@ -266,6 +281,7 @@ class PortfolioManager:
             "symbol": "--",
             "name": "Cash",
             "h_type": "Cash",
+            "sector": "Cash",
             "num_shares": "--",
             "curr_price": "--",
             "previous_close": "--",
@@ -281,28 +297,30 @@ class PortfolioManager:
 
         return enriched
 
-    # Aggregates market value of holdings by type (cash is included as the "Cash" type,
-    # since CalculateHoldingInfo adds it as a holding).
-    # Returns a list of {h_type, market_value, allocation_pct}, sorted by type name so a
-    # type keeps the same slice colour from one refresh to the next -- sorting by value
-    # would repaint the chart whenever two types swapped places.
+    # Aggregates market value of holdings by an arbitrary grouping field --
+    # "h_type" for the asset-type breakdown, "sector" for the industry
+    # breakdown (cash is included as its own group in both, since
+    # CalculateHoldingInfo tags it with h_type="Cash" and sector="Cash").
+    # Returns a list of {label, market_value, allocation_pct}, sorted by label
+    # so a group keeps the same slice colour from one refresh to the next --
+    # sorting by value would repaint the chart whenever two groups swapped places.
 
-    def CalculateAllocationByType(self, holdings):
-        value_by_type = {}
+    def CalculateAllocationByField(self, holdings, field: str):
+        value_by_label = {}
         total_value = 0
 
         for holding in holdings:
-            h_type = holding["h_type"]
+            label = holding.get(field) or "Other"
             market_value = holding["market_value"]
 
-            value_by_type[h_type] = value_by_type.get(h_type, 0) + market_value
+            value_by_label[label] = value_by_label.get(label, 0) + market_value
             total_value += market_value
 
         allocations = []
-        for h_type in sorted(value_by_type):
-            value = value_by_type[h_type]
+        for label in sorted(value_by_label):
+            value = value_by_label[label]
             allocations.append({
-                "h_type": h_type,
+                "label": label,
                 "market_value": value,
                 "allocation_pct": (value / total_value * 100) if total_value else 0,
             })

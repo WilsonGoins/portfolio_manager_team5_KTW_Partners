@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { PortfolioValueCard } from "../components/overview/PortfolioValueCard";
 import { WatchListCard } from "../components/overview/WatchListCard";
 import { AllocationCard } from "../components/overview/AllocationCard.jsx";
@@ -19,6 +19,7 @@ function ErrorCard({ className, title, message }) {
 export function Overview() {
   const [holdingsData, setHoldingsData] = useState([]);
   const [allocationData, setAllocationData] = useState([]);
+  const [allocationDataBySector, setAllocationDataBySector] = useState([]);
   const [portfolioHistory, setPortfolioHistory] = useState([]);
   const [portfolioSummary, setPortfolioSummary] = useState(null);
   const [topMovers, setTopMovers] = useState([]);
@@ -26,17 +27,26 @@ export function Overview() {
   const [error, setError] = useState(null);
   const { refreshToken, setLastUpdated, setIsRefreshing } = useDataFreshness();
 
+  // refreshToken lives above the router, so it keeps its value while this page
+  // unmounts and remounts on navigation. Comparing against what it was at mount
+  // is what separates "Refresh was clicked" from "this page just came back".
+  const tokenAtMount = useRef(refreshToken);
+
   useEffect(() => {
     let cancelled = false;
+    const isManualRefresh = refreshToken !== tokenAtMount.current;
 
     async function fetchOverviewData() {
-      // Only the very first load blanks the cards out. A refresh from the navbar
+      // Only a first paint blanks the cards out. A refresh from the navbar
       // leaves the current numbers up until the new ones arrive.
-      if (refreshToken === 0) setIsLoading(true);
+      if (!isManualRefresh) setIsLoading(true);
       setIsRefreshing(true);
 
       try {
-        const response = await fetch('/api/overview');
+        // a manual refresh asks the server to skip its quote cache; simply
+        // arriving on the page is happy with whatever is already cached
+        const response = await fetch(
+          isManualRefresh ? '/api/overview?refresh=true' : '/api/overview');
 
         if (!response.ok) {
           throw new Error(`Server returned ${response.status}`);
@@ -47,6 +57,7 @@ export function Overview() {
 
         setHoldingsData(overviewData.HoldingsTable || []);
         setAllocationData(overviewData.Allocations || []);
+        setAllocationDataBySector(overviewData.AllocationsBySector || []);
         setPortfolioHistory(overviewData.PortfolioHistory || []);
         setPortfolioSummary(overviewData.PortfolioSummary || null);
         setTopMovers(overviewData.TopMovers || []);
@@ -91,7 +102,7 @@ export function Overview() {
             <PortfolioValueCard data={portfolioHistory} summary={portfolioSummary} />
             <WatchListCard data={topMovers} />
             <HoldingsCard data={holdingsData} />
-            <AllocationCard data={allocationData} />
+            <AllocationCard dataByType={allocationData} dataBySector={allocationDataBySector} />
           </>
         )}
       </div>

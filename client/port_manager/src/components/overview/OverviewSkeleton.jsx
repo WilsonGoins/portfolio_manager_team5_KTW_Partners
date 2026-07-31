@@ -32,26 +32,26 @@ export function OverviewSkeleton() {
           ))}
         </div>
 
-        <div className="skeleton skeleton-chart" />
+        <div className="skeleton overview-skeleton-chart" />
       </div>
 
       <div className="card watchlist-card skeleton-card" aria-hidden="true">
         <div className="skeleton skeleton-heading" />
 
         <div className="skeleton-list-header">
-          <div className="skeleton skeleton-text skeleton-text-sm" style={{ width: '52px' }} />
-          <div className="skeleton skeleton-text skeleton-text-sm" style={{ width: '38px' }} />
+          <div className="skeleton skeleton-text overview-skeleton-text-sm" style={{ width: '52px' }} />
+          <div className="skeleton skeleton-text overview-skeleton-text-sm" style={{ width: '38px' }} />
         </div>
 
         {Array.from({ length: WATCHLIST_ROWS }, (_, i) => (
           <div key={i} className="skeleton-list-row">
             <div className="skeleton-stack">
               <div className="skeleton skeleton-text" style={{ width: '54px' }} />
-              <div className="skeleton skeleton-text skeleton-text-sm" style={{ width: CELL_WIDTHS[i] }} />
+              <div className="skeleton skeleton-text overview-skeleton-text-sm" style={{ width: CELL_WIDTHS[i] }} />
             </div>
             <div className="skeleton-stack skeleton-stack-end">
               <div className="skeleton skeleton-text" style={{ width: '62px' }} />
-              <div className="skeleton skeleton-text skeleton-text-sm" style={{ width: '46px' }} />
+              <div className="skeleton skeleton-text overview-skeleton-text-sm" style={{ width: '46px' }} />
             </div>
           </div>
         ))}
@@ -63,7 +63,7 @@ export function OverviewSkeleton() {
         <div className="skeleton-grid-row skeleton-grid-header">
           {HOLDINGS_COLUMNS.map((flex, i) => (
             <div key={i} style={{ flex }}>
-              <div className="skeleton skeleton-text skeleton-text-sm" style={{ width: '60%' }} />
+              <div className="skeleton skeleton-text overview-skeleton-text-sm" style={{ width: '60%' }} />
             </div>
           ))}
         </div>
@@ -91,8 +91,8 @@ export function OverviewSkeleton() {
         </div>
 
         <div className="skeleton-list-header">
-          <div className="skeleton skeleton-text skeleton-text-sm" style={{ width: '36px' }} />
-          <div className="skeleton skeleton-text skeleton-text-sm" style={{ width: '42px' }} />
+          <div className="skeleton skeleton-text overview-skeleton-text-sm" style={{ width: '36px' }} />
+          <div className="skeleton skeleton-text overview-skeleton-text-sm" style={{ width: '42px' }} />
         </div>
 
         {Array.from({ length: ALLOCATION_ROWS }, (_, i) => (
