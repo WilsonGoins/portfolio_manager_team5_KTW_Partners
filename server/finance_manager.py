@@ -116,6 +116,10 @@ class FinanceManager:
                 "name": info.get("longName") or info.get("shortName"),
                 "stock_type": info.get("quoteType"),
                 "previous_close": info.get("previousClose"),
+                # ETFs don't carry a GICS "sector" the way equities do, so fall
+                # back to Yahoo's fund "category" (e.g. "Large Growth"), and
+                # finally to "Other" for anything with neither (e.g. cash).
+                "sector": info.get("sector") or info.get("category") or "Other",
             }
         except Exception as e:
             self.logger.error(f"Failed to fetch stock by ticker '{
