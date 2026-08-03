@@ -14,6 +14,34 @@
   height: 18px;             /* .card h3, 1.125rem */
 }
 
+/* --- drawdown / run-up --- */
+
+.analytics-skeleton-drawdown-headline {
+  width: 96px;
+  height: 24px;             /* .drawdown-runup-headline, 1.5rem */
+  margin: 2px 0 8px;
+}
+
+.analytics-skeleton-drawdown-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;           /* .drawdown-runup-row */
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.analytics-skeleton-drawdown-row:last-child {
+  border-bottom: none;
+}
+
+.analytics-skeleton-drawdown-label {
+  width: 56px;
+}
+
+.analytics-skeleton-drawdown-value {
+  width: 128px;
+}
+
 /* --- headline + meter --- */
 
 .analytics-skeleton-headline {

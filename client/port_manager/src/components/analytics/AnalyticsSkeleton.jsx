@@ -6,8 +6,10 @@ import './AnalyticsSkeleton.css';
 // real cards' structure -- same grid slots, same headers, same row heights -- so
 // the page doesn't jump around when the data lands and the components swap in.
 //
-// Returns two cards' worth of markup rather than a wrapper div, because the
-// parent .analytics-main-content is the grid and these need to be its direct items.
+// Returns the risk card's skeleton plus a right-column wrapper (movers, then
+// drawdown, then run-up) rather than one flat list, because the parent
+// .analytics-main-content is a two-column grid and these need to be its two
+// direct items -- matching exactly what the loaded page renders.
 
 // Matches the dumbbell's default: eight positions plus the cash row.
 const DUMBBELL_ROWS = 9;
@@ -85,20 +87,35 @@ export function AnalyticsSkeleton() {
         </div>
       </div>
 
-      <div className="card movers-card skeleton-card" aria-hidden="true">
-        <div className="skeleton skeleton-heading analytics-skeleton-movers-heading" />
+      <div className="analytics-right-column">
+        <div className="card movers-card skeleton-card" aria-hidden="true">
+          <div className="skeleton skeleton-heading analytics-skeleton-movers-heading" />
 
-        {Array.from({ length: 2 }, (_, i) => (
-          <div key={i} className="analytics-skeleton-mover-row">
-            <div className="skeleton analytics-skeleton-pill" />
-            <div className="analytics-skeleton-stack">
-              <div className="skeleton skeleton-text analytics-skeleton-mover-symbol" />
-              <div className="skeleton skeleton-text analytics-skeleton-mover-name" />
+          {Array.from({ length: 2 }, (_, i) => (
+            <div key={i} className="analytics-skeleton-mover-row">
+              <div className="skeleton analytics-skeleton-pill" />
+              <div className="analytics-skeleton-stack">
+                <div className="skeleton skeleton-text analytics-skeleton-mover-symbol" />
+                <div className="skeleton skeleton-text analytics-skeleton-mover-name" />
+              </div>
+              <div className="analytics-skeleton-stack analytics-skeleton-stack-end">
+                <div className="skeleton skeleton-text analytics-skeleton-mover-price" />
+                <div className="skeleton skeleton-text analytics-skeleton-mover-change" />
+              </div>
             </div>
-            <div className="analytics-skeleton-stack analytics-skeleton-stack-end">
-              <div className="skeleton skeleton-text analytics-skeleton-mover-price" />
-              <div className="skeleton skeleton-text analytics-skeleton-mover-change" />
-            </div>
+          ))}
+        </div>
+
+        {['Max drawdown', 'Max run-up'].map((label) => (
+          <div key={label} className="card drawdown-runup-card skeleton-card" aria-hidden="true">
+            <div className="skeleton skeleton-heading" />
+            <div className="skeleton analytics-skeleton-drawdown-headline" />
+            {Array.from({ length: 4 }, (_, i) => (
+              <div key={i} className="analytics-skeleton-drawdown-row">
+                <div className="skeleton skeleton-text analytics-skeleton-drawdown-label" />
+                <div className="skeleton skeleton-text analytics-skeleton-drawdown-value" />
+              </div>
+            ))}
           </div>
         ))}
       </div>

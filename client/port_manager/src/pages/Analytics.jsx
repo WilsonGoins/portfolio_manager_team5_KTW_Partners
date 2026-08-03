@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { RiskCard } from "../components/analytics/RiskCard";
 import { BiggestMoversCard } from "../components/analytics/BiggestMoversCard";
+import { MaxDrawdownCard } from "../components/analytics/MaxDrawdownCard";
+import { MaxRunupCard } from "../components/analytics/MaxRunupCard";
 import { AnalyticsSkeleton } from "../components/analytics/AnalyticsSkeleton";
 import { useDataFreshness } from "../context/DataFreshness";
 import "./Analytics.css";
@@ -21,6 +23,8 @@ export function Analytics() {
   const [riskError, setRiskError] = useState(null);
   const [moversData, setMoversData] = useState(null);
   const [moversError, setMoversError] = useState(null);
+  const [drawdownRunupData, setDrawdownRunupData] = useState(null);
+  const [drawdownError, setDrawdownError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const { refreshToken, setLastUpdated, setIsRefreshing } = useDataFreshness();
 
@@ -40,12 +44,13 @@ export function Analytics() {
       if (refreshToken === 0) setIsLoading(true);
       setIsRefreshing(true);
 
-      // Both requests go out at once rather than one waiting on the other, and
-      // allSettled rather than all: the two cards answer different questions
-      // from different endpoints, so one failing shouldn't blank out the other.
-      const [risk, movers] = await Promise.allSettled([
+      // Three requests go out at once rather than one waiting on another, and
+      // allSettled rather than all: each card answers a different question
+      // from a different endpoint, so one failing shouldn't blank out the others.
+      const [risk, movers, drawdownRunup] = await Promise.allSettled([
         getJson('/api/risk'),
         getJson('/api/analytics/movers'),
+        getJson('/api/analytics/drawdown'),
       ]);
 
       if (cancelled) return;
@@ -64,6 +69,14 @@ export function Analytics() {
       } else {
         console.error("Failed to fetch movers data:", movers.reason);
         setMoversError(movers.reason.message);
+      }
+
+      if (drawdownRunup.status === 'fulfilled') {
+        setDrawdownRunupData(drawdownRunup.value);
+        setDrawdownError(null);
+      } else {
+        console.error("Failed to fetch drawdown/runup data:", drawdownRunup.reason);
+        setDrawdownError(drawdownRunup.reason.message);
       }
 
       // neither endpoint stamps a time of its own, but both price the portfolio
@@ -93,12 +106,14 @@ export function Analytics() {
       <h2 className="analytics-page-title">Advanced Analytics</h2>
 
       {/* Cards are direct grid items in DOM order: risk takes the wide column,
-          movers the narrow one. Each renders its own loading and error state, so
-          a failure on one endpoint leaves the other card intact. */}
+          the right-column wrapper (movers, then drawdown, then run-up) the
+          narrow one. Each renders its own loading and error state, so a
+          failure on one endpoint leaves the others intact. */}
       <div className="analytics-main-content">
         {isLoading ? (
-          // one skeleton for both slots: it renders the two cards itself, so the
-          // grid keeps the same two children it will have once the data lands
+          // one skeleton for the whole page: it renders the grid's two slots
+          // itself, so the grid keeps the same two children it will have
+          // once the data lands
           <AnalyticsSkeleton />
         ) : (
           <>
@@ -114,11 +129,22 @@ export function Analytics() {
               <RiskCard data={riskData} />
             )}
 
-            {moversError ? (
-              <MessageCard className="movers-card" title="Biggest Movers" message={`Error loading data: ${moversError}`} tone="error" />
-            ) : (
-              <BiggestMoversCard data={moversData} />
-            )}
+            <div className="analytics-right-column">
+              {moversError ? (
+                <MessageCard className="movers-card" title="Biggest Movers" message={`Error loading data: ${moversError}`} tone="error" />
+              ) : (
+                <BiggestMoversCard data={moversData} />
+              )}
+
+              {drawdownError ? (
+                <MessageCard className="drawdown-runup-card" title="Max Drawdown & Run-up" message={`Error loading data: ${drawdownError}`} tone="error" />
+              ) : (
+                <>
+                  <MaxDrawdownCard data={drawdownRunupData?.drawdown ?? null} />
+                  <MaxRunupCard data={drawdownRunupData?.runup ?? null} />
+                </>
+              )}
+            </div>
           </>
         )}
       </div>
