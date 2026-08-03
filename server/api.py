@@ -3,7 +3,7 @@ import os
 import time
 import threading
 from datetime import datetime, time as dt_time
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from db_manager import DBManager
 from dotenv import load_dotenv
@@ -15,6 +15,11 @@ DB_CONNECTION_STR = os.getenv("DB_CONNECTION_STRING")
 UPDATE_PORTFOLIO_VALUE = bool(os.getenv("UPDATE_PORTFOLIO_VALUE")) or False
 print(f"UPDATE_PORTFOLIO_VALUE={UPDATE_PORTFOLIO_VALUE}")
 PORTFOLIO_VALUE_REFRESH_RATE_S = 3600
+
+# Absolute, because the working directory differs between `flask run` from
+# server/ and Vercel, which runs from the project root.
+CLIENT_DIST = os.path.abspath(os.path.join(
+    os.path.dirname(__file__), "..", "client", "port_manager", "dist"))
 
 app = Flask(__name__)
 CORS(app)
@@ -87,8 +92,20 @@ if UPDATE_PORTFOLIO_VALUE:
 
 
 @app.route("/")
-def hello_world():
-    return jsonify({"message": "Hello, World!", "status": "success"})
+@app.route("/<path:requested_path>")
+def serve_client(requested_path=""):
+    """Serves the built frontend. Vercel deploys this repo as a Python app, so
+    nothing else is serving static files -- every non-/api path lands here.
+    Unknown paths return index.html so react-router can handle the route
+    client-side, which is what makes a hard refresh on /analytics work."""
+    if not os.path.isdir(CLIENT_DIST):
+        return jsonify({"message": "Hello, World!", "status": "success"})
+
+    if requested_path and os.path.isfile(
+            os.path.join(CLIENT_DIST, requested_path)):
+        return send_from_directory(CLIENT_DIST, requested_path)
+
+    return send_from_directory(CLIENT_DIST, "index.html")
 
 
 @app.route("/api/overview")
