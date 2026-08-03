@@ -1,6 +1,5 @@
 {
-  "installCommand": "npm install --prefix client/port_manager",
-  "buildCommand": "npm run build --prefix client/port_manager",
+  "buildCommand": "npm install --prefix client/port_manager && npm run build --prefix client/port_manager",
   "outputDirectory": "client/port_manager/dist",
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index" },
