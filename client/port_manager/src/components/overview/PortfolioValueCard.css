@@ -131,3 +131,76 @@
   color: #1a202c;
   font-variant-numeric: tabular-nums;
 }
+
+.portfolio-value-card .card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  position: relative;
+}
+
+/* Info Icon Base Style */
+.info-tooltip-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.info-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid #a0aec0;
+  color: #718096;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-style: italic;
+  transition: all 0.2s ease;
+}
+
+.info-tooltip-wrapper:hover .info-icon {
+  color: #008080;
+  border-color: #008080;
+  background-color: #e6f2f2;
+}
+
+.info-tooltip-box {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 6px;
+  white-space: nowrap;
+  background-color: #1a202c;
+  color: #ffffff;
+  font-size: 0.75rem;
+  padding: 6px 10px;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 10;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+  pointer-events: none;
+}
+
+.info-tooltip-box::after {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  right: 4px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: transparent transparent #1a202c transparent;
+}
+
+.info-tooltip-wrapper:hover .info-tooltip-box,
+.info-tooltip-wrapper:focus .info-tooltip-box {
+  visibility: visible;
+  opacity: 1;
+}
