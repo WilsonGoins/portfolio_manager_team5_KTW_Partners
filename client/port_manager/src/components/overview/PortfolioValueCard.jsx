@@ -135,8 +135,22 @@ export function PortfolioValueCard({ data, summary }) {
     if (!history.length) return [];
 
     const cutoff = cutoffDate(activeTimeframe, history[history.length - 1].date);
-    return cutoff ? history.filter((point) => point.date >= cutoff) : history;
-  }, [data, activeTimeframe]);
+    const filtered = cutoff
+      ? history.filter((point) => point.date >= cutoff)
+      : history;
+
+    if (activeTimeframe === '1D') {
+      return filtered;
+    }
+
+    const dailyMap = {};
+    filtered.forEach((point) => {
+      const dayKey = point.date.slice(0, 10);
+      dailyMap[dayKey] = point;
+    });
+
+  return Object.values(dailyMap);
+}, [data, activeTimeframe]);
 
   // Both lines are re-anchored to 0% at the *first point of the currently
   // selected timeframe* -- not one fixed anchor for all history -- so
