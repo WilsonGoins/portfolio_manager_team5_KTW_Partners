@@ -21,6 +21,13 @@ const HEADER_HEIGHT = 38;
 // push the Allocation card far down the page.
 const MAX_VISIBLE_ROWS = 10;
 
+// Built once rather than per cell -- the formatter runs for every row on every
+// grid render.
+const marketValue = new Intl.NumberFormat('en-US', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
 export function HoldingsCard({ data }) {
 
   const navigate = useNavigate();
@@ -88,7 +95,7 @@ export function HoldingsCard({ data }) {
       field: 'market_value',
       headerName: 'Mkt Value',
       type: 'numericColumn',
-      valueFormatter: (params) => typeof params.value === 'number' ? `$${params.value?.toFixed(2)}` : '--',
+      valueFormatter: (params) => typeof params.value === 'number' ? `$${marketValue.format(params.value)}` : '--',
       minWidth: 110,
       flex: 1.2,
     },
