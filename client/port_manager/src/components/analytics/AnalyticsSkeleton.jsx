@@ -90,6 +90,7 @@ export function AnalyticsSkeleton() {
       <div className="analytics-right-column">
         <div className="card movers-card skeleton-card" aria-hidden="true">
           <div className="skeleton skeleton-heading analytics-skeleton-movers-heading" />
+          <div className="skeleton skeleton-text analytics-skeleton-movers-subtitle" />
 
           {Array.from({ length: 2 }, (_, i) => (
             <div key={i} className="analytics-skeleton-mover-row">
@@ -124,3 +125,4 @@ export function AnalyticsSkeleton() {
     </>
   );
 }
+

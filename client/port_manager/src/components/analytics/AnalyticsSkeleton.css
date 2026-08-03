@@ -169,7 +169,13 @@
 /* --- movers card --- */
 
 .analytics-skeleton-movers-heading {
-  margin-bottom: 16px;      /* .movers-card h3 */
+  margin-bottom: 2px;       /* .movers-card h3 */
+}
+
+.analytics-skeleton-movers-subtitle {
+  width: 55%;
+  height: 12px;
+  margin-bottom: 16px;      /* .movers-subtitle */
 }
 
 .analytics-skeleton-mover-row {

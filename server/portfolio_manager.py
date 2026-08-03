@@ -2,13 +2,79 @@ from finance_manager import FinanceManager
 from db_manager import DBManager
 from datetime import datetime, timezone
 from db_items import Holding, Transaction
+from collections import namedtuple
 import bisect
+import os
+import re
 
 
 _CONSERVATIVE_BETA_CEILING = 0.8
 _MARKET_BETA_CEILING = 1.2
 # difference threshold between a holding's share of the risk and a holidng's share of the portfolio
 _RISK_HIGHLIGHT_MIN_GAP_PCT = 3.0
+
+# --- TEMPORARY: seed-transaction fallback for cost basis -------------------
+# A local dev database seeded before db/seed_dummy_data.sql was reconciled
+# (or never reseeded since) has holdings rows for the demo tickers with no
+# matching transaction rows behind them, so CalculateCostBasis has nothing to
+# compute their average cost from. Rather than hand-copy that file's
+# transaction rows here (which would silently drift out of sync the next
+# time someone edits the seed file), this reads and parses that file
+# directly, so it's never a second copy of the data -- just a different view
+# of the same one file. Used ONLY for a ticker that has zero real rows in the
+# transactions table; a ticker with any real history always uses that
+# instead and is never blended with this fallback.
+# NOTE: db/ is excluded from the Vercel deployment (see .vercelignore), so
+# this file won't exist there -- _load_seed_transactions() returns [] in that
+# case, and CalculateCostBasis falls back to nothing beyond real transactions,
+# same as if this whole block didn't exist. Local dev only, by design.
+# DELETE THIS once every environment has been reseeded with the current
+# seed_dummy_data.sql, so cost basis always comes from the real transactions
+# table -- this exists purely as a bridge until then, not a design choice.
+_SeedTxn = namedtuple(
+    "_SeedTxn", ["ticker", "quantity", "price", "trans_date", "action_taken"])
+
+_SEED_SQL_PATH = os.path.join(os.path.dirname(
+    __file__), "..", "db", "seed_dummy_data.sql")
+_SEED_ROW_PATTERN = re.compile(
+    r"\(\s*'([A-Za-z]+)'\s*,\s*(\d+)\s*,\s*([\d.]+)\s*,\s*'([\d\-: ]+)'\s*,\s*'(buy|sell)'\s*\)"
+)
+
+
+def _load_seed_transactions():
+    try:
+        with open(_SEED_SQL_PATH, "r") as f:
+            sql = f.read()
+    except OSError:
+        return []
+
+    # isolate just the "INSERT INTO transactions (...) VALUES (...), (...);"
+    # block, so this can't accidentally match rows from a different INSERT
+    # elsewhere in the file (e.g. holdings or portfolio_value)
+    match = re.search(
+        r"INSERT INTO transactions\s*\([^)]*\)\s*VALUES\s*(.*?);",
+        sql, re.IGNORECASE | re.DOTALL)
+    if not match:
+        return []
+
+    seed_transactions = []
+    for row in _SEED_ROW_PATTERN.finditer(match.group(1)):
+        ticker, quantity, price, date_str, action = row.groups()
+        seed_transactions.append(_SeedTxn(
+            ticker=ticker,
+            quantity=int(quantity),
+            price=float(price),
+            trans_date=datetime.strptime(
+                date_str.strip(), "%Y-%m-%d %H:%M:%S"),
+            action_taken=action,
+        ))
+
+    return seed_transactions
+
+
+# parsed once at import time rather than on every call to CalculateCostBasis
+_SEED_TRANSACTIONS = _load_seed_transactions()
+# ---------------------------------------------------------------------------
 
 
 class PortfolioManager:
@@ -66,8 +132,7 @@ class PortfolioManager:
             enrichedHoldings, "sector")
 
         # headline numbers for the portfolio value card
-        summary = self.db_manager.get_portfolio_values(
-        )[0].to_dict()  # WHY IS THIS NOT DESCENDING ORDER
+        summary = self.CalculatePortfolioSummary(enrichedHoldings)
         finalRes["PortfolioSummary"] = summary
 
         # the value chart's series: stored snapshots, capped with today's live
@@ -112,46 +177,141 @@ class PortfolioManager:
         # now clean up the data to have all the necessary information (cash is folded in as its own holding)
         return self.CalculateHoldingInfo(holdingsWithPrice)
 
-    # Analytics page: which current holding gained the most, and which lost
-    # the most, by percent move since yesterday's close -- the same
-    # change_pct_since_close CalculateHoldingInfo already computes for the
-    # Holdings table, just picking the max and min of it instead of listing
-    # every row. Cash is excluded since it has no daily change to speak of.
-    # Returns {"biggest_gainer": {...}, "biggest_loser": {...}}, with a field
-    # set to None when there's no holding with a computable change (e.g. an
-    # empty portfolio, or every quote missing a previous close). If exactly
-    # one holding qualifies, it's correctly both entries -- it's the only
-    # thing that moved, in either direction.
+    # Analytics page: which current holding has gained the most, and which
+    # has lost the most, relative to what the user actually paid for it --
+    # not today's market move. A stock bought today because it was already
+    # down doesn't show up as a "loser" just for being purchased at a low
+    # price; it only shows up once its price falls *below what was paid*.
+    # Cash and any holding without a computable cost basis (see
+    # CalculateCostBasis) are excluded from the running, and listed in
+    # excluded_symbols instead of just silently vanishing -- same idea as
+    # RiskCard's "not rated by Yahoo" footnote, for the same reason: a holding
+    # can't be evaluated for this specific metric, not that Biggest Movers is
+    # broken. Returns {"biggest_gainer": {...} or None, "biggest_loser": {...}
+    # or None, "qualifying_count", "total_positions", "excluded_symbols"} --
+    # both cards None if no holding qualifies at all. If exactly one holding
+    # qualifies, it's correctly both entries -- it's the only one with a gain
+    # or loss to speak of, which the frontend should say plainly rather than
+    # showing what looks like two duplicate cards.
 
     def GetBiggestGainerAndLoser(self):
         enrichedHoldings = self._GetEnrichedHoldings()
+        costBasisByTicker = self.CalculateCostBasis()
 
-        # only holdings with an actual numeric move -- excludes cash ("--")
-        # and any holding whose quote came back without enough data to price
-        movers = [holding for holding in enrichedHoldings
-                  if isinstance(holding["change_pct_since_close"], (int, float))]
+        movers = []
+        excluded_symbols = []
+        total_positions = 0
+
+        for holding in enrichedHoldings:
+            ticker = holding["symbol"]
+            if ticker == "--":  # the cash row -- not a position, don't count or list it
+                continue
+            total_positions += 1
+
+            curr_price = holding["curr_price"]
+            avg_cost = costBasisByTicker.get(ticker)
+
+            if avg_cost is None or not isinstance(curr_price, (int, float)):
+                excluded_symbols.append(ticker)
+                continue
+
+            gain_pct = (curr_price - avg_cost) / avg_cost * \
+                100 if avg_cost else 0
+            movers.append({
+                "symbol": ticker,
+                "name": holding["name"],
+                "curr_price": curr_price,
+                "avg_cost_basis": avg_cost,
+                "gain_since_purchase": (curr_price - avg_cost) * holding["num_shares"],
+                "gain_pct_since_purchase": gain_pct,
+            })
 
         if not movers:
-            return {"biggest_gainer": None, "biggest_loser": None}
-
-        def _summarize(holding):
             return {
-                "symbol": holding["symbol"],
-                "name": holding["name"],
-                "curr_price": holding["curr_price"],
-                "change_since_close": holding["change_since_close"],
-                "change_pct_since_close": holding["change_pct_since_close"],
+                "biggest_gainer": None,
+                "biggest_loser": None,
+                "qualifying_count": 0,
+                "total_positions": total_positions,
+                "excluded_symbols": excluded_symbols,
             }
 
         biggest_gainer = max(
-            movers, key=lambda holding: holding["change_pct_since_close"])
+            movers, key=lambda holding: holding["gain_pct_since_purchase"])
         biggest_loser = min(
-            movers, key=lambda holding: holding["change_pct_since_close"])
+            movers, key=lambda holding: holding["gain_pct_since_purchase"])
 
         return {
-            "biggest_gainer": _summarize(biggest_gainer),
-            "biggest_loser": _summarize(biggest_loser),
+            "biggest_gainer": biggest_gainer,
+            "biggest_loser": biggest_loser,
+            "qualifying_count": len(movers),
+            "total_positions": total_positions,
+            "excluded_symbols": excluded_symbols,
         }
+
+    # Average cost basis per share for every ticker currently held, computed
+    # by replaying the full buy/sell transaction history in order (oldest
+    # first) using the average-cost method: a buy raises the running share
+    # count and running cost together; a sell removes shares at the
+    # position's *current* average cost (realizing whatever gain or loss on
+    # just those shares) without changing the average cost of what's left --
+    # only a later buy moves the average again. This is the same method
+    # brokerages use for "average cost" unrealized gain/loss, as opposed to
+    # FIFO/LIFO lot tracking, which this app doesn't otherwise track lots for.
+    #
+    # A ticker with no real transaction rows falls back to _SEED_TRANSACTIONS
+    # (parsed from db/seed_dummy_data.sql -- see the comment above that
+    # constant; this is a bridge for databases that haven't been reseeded
+    # with the reconciled seed file, not a permanent data source, and real
+    # rows always win over it).
+    #
+    # Returns {ticker: avg_cost_per_share}. A ticker whose transaction history
+    # (real or fallback) nets out to zero (or negative, which shouldn't
+    # happen but would signal a data problem) shares held is left out rather
+    # than returning a nonsensical basis -- this can also happen for a ticker
+    # that's fully sold off but still has old transaction rows on record.
+
+    def CalculateCostBasis(self):
+        transactions = self.db_manager.get_transactions()
+
+        by_ticker = {}
+        for t in transactions:
+            by_ticker.setdefault(t.ticker, []).append(t)
+
+        # frozen *before* the fallback is added, so a multi-row seed ticker
+        # (e.g. NVDA has three rows) doesn't get cut short after its first
+        # fallback row makes it look like it "has data" to the checks below
+        tickers_with_real_data = set(by_ticker)
+
+        for seed_txn in _SEED_TRANSACTIONS:
+            if seed_txn.ticker not in tickers_with_real_data:
+                by_ticker.setdefault(seed_txn.ticker, []).append(seed_txn)
+
+        cost_basis = {}
+        for ticker, txns in by_ticker.items():
+            txns.sort(key=lambda t: t.trans_date)
+            running_shares = 0
+            running_cost = 0.0
+
+            for t in txns:
+                # price is a Decimal (comes from a Postgres DECIMAL column)
+                # for a real row, or a plain float for a fallback row; cast
+                # either way so it doesn't collide with running_cost's type
+                price = float(t.price)
+
+                if t.action_taken == "buy":
+                    running_shares += t.quantity
+                    running_cost += t.quantity * price
+                elif t.action_taken == "sell" and running_shares > 0:
+                    avg_cost = running_cost / running_shares
+                    sold = min(t.quantity, running_shares)
+                    running_cost -= avg_cost * sold
+                    running_shares -= sold
+
+            if running_shares > 0:
+                cost_basis[ticker] = running_cost / running_shares
+
+        return cost_basis
+
 
     # Today's biggest market movers for the watchlist. Reshapes the finance
     # manager's quotes into [{"symbol", "name", "price", "change"}], where
