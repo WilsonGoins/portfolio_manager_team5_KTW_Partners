@@ -262,8 +262,11 @@ class PortfolioManager:
         if len(history) < 2:
             return {"drawdown": None, "runup": None}
 
-        def _parse(date_str):
-            return datetime.strptime(date_str, "%Y-%m-%d")
+        def _parse(date_str):   # dates sometimes have timestamps that we need to drop for this component
+            return datetime.fromisoformat(date_str).date()
+
+        def _day(date_str):     # the plain YYYY-MM-DD the cards below expect
+            return _parse(date_str).isoformat() if date_str else None
 
         # drawdown: track the running peak; the worst decline from it is the
         # biggest (most negative) % any later point falls below that peak.
@@ -294,11 +297,11 @@ class PortfolioManager:
             drawdown = {
                 "pct": max_dd_pct,
                 "peak_value": dd_peak_value,
-                "peak_date": dd_peak_date,
+                "peak_date": _day(dd_peak_date),
                 "trough_value": dd_trough_value,
-                "trough_date": dd_trough_date,
+                "trough_date": _day(dd_trough_date),
                 "decline_days": (_parse(dd_trough_date) - _parse(dd_peak_date)).days,
-                "recovered_date": recovered_date,
+                "recovered_date": _day(recovered_date),
                 "recovery_days": recovery_days,
             }
 
@@ -328,9 +331,9 @@ class PortfolioManager:
             runup = {
                 "pct": max_ru_pct,
                 "trough_value": ru_trough_value,
-                "trough_date": ru_trough_date,
+                "trough_date": _day(ru_trough_date),
                 "peak_value": ru_peak_value,
-                "peak_date": ru_peak_date,
+                "peak_date": _day(ru_peak_date),
                 "incline_days": (_parse(ru_peak_date) - _parse(ru_trough_date)).days,
                 "since_peak_pct": since_peak_pct,
                 "at_new_high": since_peak_pct >= 0,

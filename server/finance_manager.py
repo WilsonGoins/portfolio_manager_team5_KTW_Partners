@@ -353,10 +353,14 @@ class FinanceManager:
             pe = info.get("trailingPE")
             pe_formatted = round(pe, 1) if pe is not None else "N/A"
 
+            description = (info.get("longBusinessSummary")
+                           or info.get("description") or None)
+
             details = {
                 "symbol": ticker.upper(),
                 "name": info.get("longName") or info.get("shortName") or ticker.upper(),
                 "h_type": formatted_type,
+                "description": description,
                 "curr_price": round(float(current_price), 2),
                 "previous_close": round(float(previous_close), 2),
                 "change_since_close": round(float(current_price - previous_close), 2),

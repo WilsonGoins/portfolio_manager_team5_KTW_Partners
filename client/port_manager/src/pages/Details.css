@@ -321,3 +321,50 @@
   cursor: not-allowed;
 }
 
+
+/* About card */
+.about-text {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.7;
+  color: #475569;
+  max-width: 72ch;   /* long lines of prose get hard to track back from */
+}
+
+/* Collapsed: four lines, then an ellipsis. The toggle below only appears
+   when the text is long enough to actually be clipped here. */
+.about-text.collapsed {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.about-empty {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+/* A button for keyboard/screen-reader users, styled as the same quiet
+   centered prompt the Explore cards use. */
+.about-toggle {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 0;
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  text-align: center;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.about-toggle:hover {
+  color: #0bba83;
+}
