@@ -201,7 +201,6 @@ class PortfolioManager:
 
         history = []
         for pv in sorted(dbRes, key=lambda pv: pv.p_date):
-            # Format ISO timestamp with UTC 'Z' for frontend timezone rendering
             dt_str = pv.p_date.isoformat()
             history.append({
                 "date": dt_str,
