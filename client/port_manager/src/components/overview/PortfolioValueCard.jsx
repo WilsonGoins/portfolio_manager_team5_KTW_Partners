@@ -23,14 +23,23 @@ const compactCurrency = new Intl.NumberFormat('en-US', {
 const shortDate = new Intl.DateTimeFormat('en-US', {
   month: 'short',
   day: 'numeric',
-  timeZone: 'UTC',
+  timeZone: 'America/Toronto',
 });
 
 const longDate = new Intl.DateTimeFormat('en-US', {
   month: 'short',
   day: 'numeric',
   year: 'numeric',
-  timeZone: 'UTC',
+  timeZone: 'America/Toronto',
+});
+
+const longDateTime = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+  timeZone: 'America/Toronto',
 });
 
 // Round tick values covering [min, max] -- steps snap to 1/2/5 x a power of ten
@@ -55,7 +64,13 @@ function niceTicks(min, max, count = 5) {
 // most recent point rather than from today, so the chart still fills in if the
 // snapshots are lagging. Dates stay as strings -- ISO dates compare correctly.
 function cutoffDate(timeframe, latestDate) {
-  const d = new Date(`${latestDate}T00:00:00Z`);
+  if (!latestDate) return null;
+
+  const d = new Date(
+    latestDate.includes('T') ? latestDate : `${latestDate}T00:00:00Z`
+  );
+
+  if (isNaN(d.getTime())) return null;
 
   switch (timeframe) {
     case '1D':
@@ -81,23 +96,32 @@ function cutoffDate(timeframe, latestDate) {
 
 const percent = (value) => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
 
-function ComparisonTooltip({ active, payload, label }) {
-  if (!active || !payload?.length) return null;
+function ComparisonTooltip({ active, payload, label, activeTimeframe }) {
+  if (!active || !payload?.length || !label) return null;
+
+  const hasTime = label.includes(':') || label.includes('GMT') || label.includes('T');
+  const parsedDate = new Date(hasTime ? label : `${label}T00:00:00Z`);
+
+  if (isNaN(parsedDate.getTime())) return null;
+
+  const formattedDate =
+    activeTimeframe === '1D'
+      ? longDateTime.format(parsedDate)
+      : longDate.format(parsedDate);
 
   return (
     <div className="comparison-tooltip">
-      <div className="comparison-tooltip-date">
-        {longDate.format(new Date(`${label}T00:00:00Z`))}
-      </div>
-      {payload.map((entry) => (
-        entry.value != null && (
-          <div key={entry.dataKey} className="comparison-tooltip-row">
-            <span className="legend-dot" style={{ backgroundColor: entry.stroke }} />
-            <span className="comparison-tooltip-label">{entry.name}</span>
-            <span className="comparison-tooltip-value">{percent(entry.value)}</span>
-          </div>
-        )
-      ))}
+      <div className="comparison-tooltip-date">{formattedDate}</div>
+      {payload.map(
+        (entry) =>
+          entry.value != null && (
+            <div key={entry.dataKey} className="comparison-tooltip-row">
+              <span className="legend-dot" style={{ backgroundColor: entry.stroke }} />
+              <span className="comparison-tooltip-label">{entry.name}</span>
+              <span className="comparison-tooltip-value">{percent(entry.value)}</span>
+            </div>
+          )
+      )}
     </div>
   );
 }
@@ -148,9 +172,10 @@ export function PortfolioValueCard({ data, summary }) {
   const latestValue = summary ? currency.format(summary.total_value) : '--';
 
   const isPositive = (summary?.day_change ?? 0) >= 0;
+  console.log(summary);
   const todayChange = summary
     ? `${isPositive ? '+' : '-'}${currency.format(Math.abs(summary.day_change))} ` +
-      `(${isPositive ? '+' : ''}${summary.day_change_pct.toFixed(2)}%) Today`
+      `(${isPositive ? '+' : ''}${Number(summary.day_change_pct).toFixed(2)}%) Today`
     : '--';
 
   return (
@@ -187,7 +212,6 @@ export function PortfolioValueCard({ data, summary }) {
         </button>
       </div>
 
-      {/* height covers the plot plus the x-axis band, so ticks aren't clipped */}
       <div className="chart-container" style={{ height: '200px', marginTop: '12px' }}>
         {showBenchmark ? (
           comparisonChartData.length < 2 ? (
@@ -200,7 +224,28 @@ export function PortfolioValueCard({ data, summary }) {
                 <CartesianGrid vertical={false} stroke="#f0f0f0" />
                 <XAxis
                   dataKey="date"
-                  tickFormatter={(date) => shortDate.format(new Date(`${date}T00:00:00Z`))}
+                  tickFormatter={(dateStr) => {
+                    if (!dateStr) return '';
+                    
+                    // Parse directly if it has a timestamp/GMT, otherwise append T00:00:00Z fallback
+                    const hasTime = dateStr.includes(':') || dateStr.includes('GMT') || dateStr.includes('T');
+                    const parsedDate = new Date(hasTime ? dateStr : `${dateStr}T00:00:00Z`);
+
+                    // Guard against any invalid dates
+                    if (isNaN(parsedDate.getTime())) return '';
+
+                    // If activeTimeframe is '1D', display time on the X-axis ticks (e.g., "9:30 AM")
+                    if (activeTimeframe === '1D') {
+                      return new Intl.DateTimeFormat('en-US', {
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        timeZone: 'America/Toronto', // Or omit for local browser time
+                      }).format(parsedDate);
+                    }
+
+                    // Otherwise show short date (e.g., "Aug 3")
+                    return shortDate.format(parsedDate);
+                  }}
                   tick={{ fill: '#718096', fontSize: 12 }}
                   tickLine={false}
                   axisLine={{ stroke: '#e2e8f0' }}
@@ -214,7 +259,7 @@ export function PortfolioValueCard({ data, summary }) {
                   axisLine={false}
                   width={48}
                 />
-                <Tooltip content={<ComparisonTooltip />} />
+                <Tooltip content={<ComparisonTooltip activeTimeframe={activeTimeframe} />} />
 
                 <Line
                   type="monotone"
@@ -243,13 +288,25 @@ export function PortfolioValueCard({ data, summary }) {
           </p>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            {/* right margin holds the last x-axis label, which is centred on the
-                final point and so overhangs the plot by half its width */}
             <AreaChart data={currentChartData} margin={{ top: 10, right: 26, left: 0, bottom: 0 }}>
               <CartesianGrid vertical={false} stroke="#f0f0f0" />
               <XAxis
                 dataKey="date"
-                tickFormatter={(date) => shortDate.format(new Date(`${date}T00:00:00Z`))}
+                tickFormatter={(dateStr) => {
+                  if (!dateStr) return '';
+                  const hasTime = dateStr.includes(':') || dateStr.includes('GMT') || dateStr.includes('T');
+                  const parsedDate = new Date(hasTime ? dateStr : `${dateStr}T00:00:00Z`);
+
+                  if (isNaN(parsedDate.getTime())) return '';
+
+                  return activeTimeframe === '1D'
+                    ? new Intl.DateTimeFormat('en-US', {
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        timeZone: 'America/Toronto',
+                      }).format(parsedDate)
+                    : shortDate.format(parsedDate);
+                }}
                 tick={{ fill: '#718096', fontSize: 12 }}
                 tickLine={false}
                 axisLine={{ stroke: '#e2e8f0' }}
@@ -267,7 +324,18 @@ export function PortfolioValueCard({ data, summary }) {
               />
               <Tooltip
                 formatter={(value) => [currency.format(value), 'Value']}
-                labelFormatter={(date) => longDate.format(new Date(`${date}T00:00:00Z`))}
+                labelFormatter={(dateStr) => {
+                  if (!dateStr) return '';
+
+                  const hasTime = dateStr.includes(':') || dateStr.includes('GMT') || dateStr.includes('T');
+                  const parsedDate = new Date(hasTime ? dateStr : `${dateStr}T00:00:00Z`);
+
+                  if (isNaN(parsedDate.getTime())) return '';
+
+                  return activeTimeframe === '1D'
+                    ? longDateTime.format(parsedDate)
+                    : longDate.format(parsedDate);
+                }}
                 contentStyle={{
                   borderRadius: '8px',
                   border: '1px solid #e2e8f0',

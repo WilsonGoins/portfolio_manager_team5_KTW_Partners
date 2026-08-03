@@ -1,13 +1,14 @@
 from finance_manager import FinanceManager
 from db_manager import DBManager
-from datetime import datetime
+from datetime import datetime, timezone
 from db_items import Holding, Transaction
 import bisect
 
 
 _CONSERVATIVE_BETA_CEILING = 0.8
 _MARKET_BETA_CEILING = 1.2
-_RISK_HIGHLIGHT_MIN_GAP_PCT = 3.0       # difference threshold between a holding's share of the risk and a holidng's share of the portfolio
+# difference threshold between a holding's share of the risk and a holidng's share of the portfolio
+_RISK_HIGHLIGHT_MIN_GAP_PCT = 3.0
 
 
 class PortfolioManager:
@@ -28,11 +29,31 @@ class PortfolioManager:
         #  LastUpdated: "2026-07-30T10:20:00-04:00"
         # }
 
+    def _get_holdings_with_price(self) -> dict:
+        dbHoldingsRes = self.db_manager.get_holdings()
+
+        # one batched lookup rather than a call per holding inside the loop below:
+        # those calls used to run back to back, so the page waited on the sum of
+        # every round trip. Batched, they overlap and cost about one round trip total.
+        quotes = self.finance_manager.get_stocks_by_tickers(
+            [holding.ticker for holding in dbHoldingsRes])
+
+        holdingsWithPrice = []
+        for holding in dbHoldingsRes:      # this will iterate through the list we got and add current price for each of them
+            yahooRes = quotes.get(holding.ticker)
+            if (yahooRes is None):
+                raise ValueError("Holding must be a valid security.")
+            holdingsWithPrice.append({"symbol": holding.ticker, "name": holding.name, "h_type": holding.h_type,
+                                      "num_shares": holding.quantity_shares, "curr_price": yahooRes["current_price"],
+                                      "previous_close": yahooRes["previous_close"], "sector": yahooRes.get("sector") or "Other"})
+
+        return holdingsWithPrice
+
     def GetOverviewData(self):
         finalRes = {}
 
-        # cash is folded in as its own holding by CalculateHoldingInfo
-        enrichedHoldings = self._GetEnrichedHoldings()
+        holdingsWithPrice = self._get_holdings_with_price()
+        enrichedHoldings = self.CalculateHoldingInfo(holdingsWithPrice)
         finalRes["HoldingsTable"] = enrichedHoldings
 
         # now get the allocations for the allocations graph.
@@ -45,7 +66,8 @@ class PortfolioManager:
             enrichedHoldings, "sector")
 
         # headline numbers for the portfolio value card
-        summary = self.CalculatePortfolioSummary(enrichedHoldings)
+        summary = self.db_manager.get_portfolio_values(
+        )[0].to_dict()  # WHY IS THIS NOT DESCENDING ORDER
         finalRes["PortfolioSummary"] = summary
 
         # the value chart's series: stored snapshots, capped with today's live
@@ -68,7 +90,6 @@ class PortfolioManager:
     # that needs the current per-holding numbers -- e.g. the Analytics page's
     # biggest gainer/loser -- shares this one round trip to Yahoo instead of
     # repeating it.
-
     def _GetEnrichedHoldings(self):
         # this is a list of Holding objects, each with {ticker, name, h_type, quantity_shares, ...}
         dbHoldingsRes = self.db_manager.get_holdings()
@@ -108,7 +129,7 @@ class PortfolioManager:
         # only holdings with an actual numeric move -- excludes cash ("--")
         # and any holding whose quote came back without enough data to price
         movers = [holding for holding in enrichedHoldings
-                 if isinstance(holding["change_pct_since_close"], (int, float))]
+                  if isinstance(holding["change_pct_since_close"], (int, float))]
 
         if not movers:
             return {"biggest_gainer": None, "biggest_loser": None}
@@ -178,34 +199,34 @@ class PortfolioManager:
     def GetPortfolioHistory(self, todaysValue: float = None, benchmark_ticker: str = "^GSPC"):
         dbRes = self.db_manager.get_portfolio_values()
 
-        # p_date is a timestamp, not a date, so one calendar day can hold several
-        # snapshots -- two written minutes apart are one day of history, not two.
-        # The chart plots a value per day, and a second point on the same date
-        # draws as a vertical jump inside a single x position. Keying by date
-        # collapses them; ascending order means the day's latest write wins.
-        valueByDate = {}
+        history = []
         for pv in sorted(dbRes, key=lambda pv: pv.p_date):
-            # Decimal isn't JSON serializable
-            valueByDate[pv.p_date.strftime("%Y-%m-%d")] = float(pv.value)
+            # Format ISO timestamp with UTC 'Z' for frontend timezone rendering
+            dt_str = pv.p_date.isoformat()
+            history.append({
+                "date": dt_str,
+                "value": float(pv.value),
+            })
 
-        # today's live total replaces whatever the table holds for today, so the
-        # line ends at what the portfolio is worth now rather than at the last
-        # snapshot that happened to be written
+        # Update or append today's live value
         if todaysValue is not None:
-            valueByDate[datetime.now().strftime("%Y-%m-%d")] = todaysValue
+            today_dt = datetime.now(timezone.utc).isoformat()
+            if history and history[-1]["date"][:10] == today_dt[:10]:
+                history[-1]["value"] = todaysValue
+                history[-1]["date"] = today_dt
+            else:
+                history.append({"date": today_dt, "value": todaysValue})
 
-        history = [{"date": date, "value": valueByDate[date]}
-                   for date in sorted(valueByDate)]
-
+        # Match benchmark data (if available)
         benchmark_closes = self.finance_manager.get_index_history(
             benchmark_ticker)
         if benchmark_closes:
-            # ISO date strings ("YYYY-MM-DD") sort chronologically as plain
-            # text, so no date parsing is needed to binary-search them.
             benchmark_dates = sorted(benchmark_closes)
 
-            def _closest_close(date_str):
-                i = bisect.bisect_right(benchmark_dates, date_str)
+            def _closest_close(iso_date_str):
+                # Extract YYYY-MM-DD from the point's full ISO string
+                ymd = iso_date_str[:10]
+                i = bisect.bisect_right(benchmark_dates, ymd)
                 return benchmark_closes[benchmark_dates[i - 1]] if i > 0 else None
 
             for point in history:
@@ -580,7 +601,6 @@ class PortfolioManager:
                 "market_value": market_value,
             })
 
-
         for row in rows:
             if row["beta"] is None or not covered_value:
                 row["weight_pct"] = 0
@@ -665,3 +685,13 @@ class PortfolioManager:
 
     def get_news(self) -> list[dict]:
         return self.finance_manager.get_news()
+
+    def update_portfolio_value(self) -> float:
+        holdings_with_price = self._get_holdings_with_price()
+        enriched_holdings = self.CalculateHoldingInfo(holdings_with_price)
+
+        summary = self.CalculatePortfolioSummary(enriched_holdings)
+        portfolio_value: float = summary['total_value']
+        self.db_manager.add_portfolio_value(
+            datetime.now(), portfolio_value, summary['day_change'], summary['day_change_pct'])
+        return summary
