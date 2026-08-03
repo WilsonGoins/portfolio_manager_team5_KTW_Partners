@@ -149,6 +149,18 @@ def analytics_movers():
         return jsonify({"error": "Failed to fetch biggest gainer/loser"}), 500
 
 
+@app.route("/api/analytics/drawdown")
+def analytics_drawdown():
+    """Analytics page: the portfolio's single worst decline (max drawdown) and
+    single best run (max run-up), found over its full value history."""
+    try:
+        return jsonify(portfolio_manager.GetDrawdownAndRunup())
+    except Exception as e:
+        app.logger.error(f"Failed to get drawdown/runup: {
+            e}", exc_info=True)
+        return jsonify({"error": "Failed to fetch drawdown/runup"}), 500
+
+
 @app.route("/api/buy", methods=["POST"])
 def buy():
     data = request.get_json()

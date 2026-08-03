@@ -2,6 +2,7 @@ from finance_manager import FinanceManager
 from db_manager import DBManager
 from datetime import datetime
 from db_items import Holding, Transaction
+import bisect
 
 
 _CONSERVATIVE_BETA_CEILING = 0.8
@@ -157,11 +158,24 @@ class PortfolioManager:
         return finalRes
 
     # Returns the stored portfolio value snapshots oldest first, as
-    # [{"date": "YYYY-MM-DD", "value": float}]. When todaysValue is given it is
-    # appended as (or overwrites) today's point, so the series ends at the
-    # portfolio's live value rather than at the last snapshot that was written.
+    # [{"date": "YYYY-MM-DD", "value": float, "benchmark_value": float | None}].
+    # When todaysValue is given it is appended as (or overwrites) today's
+    # point, so the series ends at the portfolio's live value rather than at
+    # the last snapshot that was written.
+    #
+    # benchmark_value is the S&P 500's raw close for that date (default
+    # "^GSPC"), matched to its most recent close on or before the portfolio's
+    # date -- so a snapshot that doesn't land on a trading day (weekend,
+    # holiday) still gets a value instead of a gap. It's left as a raw index
+    # level, not a % return: the Overview chart's timeframe toggle re-slices
+    # this same array for 1D/1W/1M/YTD/1Y, and each view needs to normalize
+    # both lines to 0% at *its own* first visible point, not one fixed
+    # anchor -- so that normalization has to happen client-side, once the
+    # slice is known, not here. benchmark_value comes back None for any date
+    # the benchmark has no close for at all (e.g. before its 1-year window
+    # starts), which the frontend should skip rather than treat as zero.
 
-    def GetPortfolioHistory(self, todaysValue: float = None):
+    def GetPortfolioHistory(self, todaysValue: float = None, benchmark_ticker: str = "^GSPC"):
         dbRes = self.db_manager.get_portfolio_values()
 
         # p_date is a timestamp, not a date, so one calendar day can hold several
@@ -180,10 +194,129 @@ class PortfolioManager:
         if todaysValue is not None:
             valueByDate[datetime.now().strftime("%Y-%m-%d")] = todaysValue
 
-        return [{"date": date, "value": valueByDate[date]}
-                for date in sorted(valueByDate)]
+        history = [{"date": date, "value": valueByDate[date]}
+                   for date in sorted(valueByDate)]
 
-    # Totals up the enriched holdings (cash included) into the headline numbers
+        benchmark_closes = self.finance_manager.get_index_history(
+            benchmark_ticker)
+        if benchmark_closes:
+            # ISO date strings ("YYYY-MM-DD") sort chronologically as plain
+            # text, so no date parsing is needed to binary-search them.
+            benchmark_dates = sorted(benchmark_closes)
+
+            def _closest_close(date_str):
+                i = bisect.bisect_right(benchmark_dates, date_str)
+                return benchmark_closes[benchmark_dates[i - 1]] if i > 0 else None
+
+            for point in history:
+                point["benchmark_value"] = _closest_close(point["date"])
+        else:
+            for point in history:
+                point["benchmark_value"] = None
+
+        return history
+
+    # Analytics page: the portfolio's single worst decline (max drawdown) and
+    # single best run (max run-up), found in one pass over its value history
+    # -- run-up is drawdown's mirror image, a rising running low instead of a
+    # falling running high. Uses today's live value as the series' last point
+    # (via GetPortfolioHistory's todaysValue), so "since peak" reflects the
+    # portfolio right now, not just the last stored snapshot.
+    # Returns {"drawdown": {...} | None, "runup": {...} | None} -- None for
+    # either with fewer than 2 history points to compare.
+    #
+    # drawdown: {"pct" (negative), "peak_value", "peak_date", "trough_value",
+    #   "trough_date", "decline_days", "recovered_date" (or None if the
+    #   portfolio hasn't closed back above that peak since), "recovery_days"
+    #   (or None to match)}
+    # runup: {"pct" (positive), "trough_value", "trough_date", "peak_value",
+    #   "peak_date", "incline_days", "since_peak_pct" (<=0, or exactly 0 if
+    #   that peak is today's value), "at_new_high" (True iff since_peak_pct
+    #   is 0 -- the portfolio has never given back any of that run)}
+
+    def GetDrawdownAndRunup(self):
+        enrichedHoldings = self._GetEnrichedHoldings()
+        summary = self.CalculatePortfolioSummary(enrichedHoldings)
+        history = self.GetPortfolioHistory(todaysValue=summary["total_value"])
+
+        if len(history) < 2:
+            return {"drawdown": None, "runup": None}
+
+        def _parse(date_str):
+            return datetime.strptime(date_str, "%Y-%m-%d")
+
+        # drawdown: track the running peak; the worst decline from it is the
+        # biggest (most negative) % any later point falls below that peak.
+        peak_value, peak_date = history[0]["value"], history[0]["date"]
+        max_dd_pct = 0
+        dd_peak_value = dd_peak_date = dd_trough_value = dd_trough_date = None
+
+        for point in history:
+            if point["value"] > peak_value:
+                peak_value, peak_date = point["value"], point["date"]
+            else:
+                pct = (point["value"] - peak_value) / \
+                    peak_value * 100 if peak_value else 0
+                if pct < max_dd_pct:
+                    max_dd_pct = pct
+                    dd_peak_value, dd_peak_date = peak_value, peak_date
+                    dd_trough_value, dd_trough_date = point["value"], point["date"]
+
+        drawdown = None
+        if dd_trough_date is not None:
+            recovered_date = next(
+                (point["date"] for point in history
+                 if point["date"] > dd_trough_date and point["value"] >= dd_peak_value),
+                None)
+            recovery_days = ((_parse(recovered_date) - _parse(dd_trough_date)).days
+                             if recovered_date else None)
+
+            drawdown = {
+                "pct": max_dd_pct,
+                "peak_value": dd_peak_value,
+                "peak_date": dd_peak_date,
+                "trough_value": dd_trough_value,
+                "trough_date": dd_trough_date,
+                "decline_days": (_parse(dd_trough_date) - _parse(dd_peak_date)).days,
+                "recovered_date": recovered_date,
+                "recovery_days": recovery_days,
+            }
+
+        # run-up: the mirror image -- track the running trough (lowest point
+        # so far) instead of the running peak, and the best gain from it.
+        trough_value, trough_date = history[0]["value"], history[0]["date"]
+        max_ru_pct = 0
+        ru_trough_value = ru_trough_date = ru_peak_value = ru_peak_date = None
+
+        for point in history:
+            if point["value"] < trough_value:
+                trough_value, trough_date = point["value"], point["date"]
+            else:
+                pct = (point["value"] - trough_value) / \
+                    trough_value * 100 if trough_value else 0
+                if pct > max_ru_pct:
+                    max_ru_pct = pct
+                    ru_trough_value, ru_trough_date = trough_value, trough_date
+                    ru_peak_value, ru_peak_date = point["value"], point["date"]
+
+        runup = None
+        if ru_peak_date is not None:
+            latest_value = history[-1]["value"]
+            since_peak_pct = ((latest_value - ru_peak_value) /
+                              ru_peak_value * 100 if ru_peak_value else 0)
+
+            runup = {
+                "pct": max_ru_pct,
+                "trough_value": ru_trough_value,
+                "trough_date": ru_trough_date,
+                "peak_value": ru_peak_value,
+                "peak_date": ru_peak_date,
+                "incline_days": (_parse(ru_peak_date) - _parse(ru_trough_date)).days,
+                "since_peak_pct": since_peak_pct,
+                "at_new_high": since_peak_pct >= 0,
+            }
+
+        return {"drawdown": drawdown, "runup": runup}
     # for the portfolio value card: what the portfolio is worth right now, and
     # how much of that is today's movement in dollars and percent.
 
