@@ -2,7 +2,7 @@ import logging
 import os
 import time
 import threading
-from datetime import datetime, time as dt_time
+from datetime import datetime, time as dt_time, timedelta
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from db_manager import DBManager
@@ -14,7 +14,6 @@ load_dotenv()
 DB_CONNECTION_STR = os.getenv("DB_CONNECTION_STRING")
 UPDATE_PORTFOLIO_VALUE = bool(os.getenv("UPDATE_PORTFOLIO_VALUE")) or False
 print(f"UPDATE_PORTFOLIO_VALUE={UPDATE_PORTFOLIO_VALUE}")
-PORTFOLIO_VALUE_REFRESH_RATE_S = 3600
 
 # Absolute, because the working directory differs between `flask run` from
 # server/ and Vercel, which runs from the project root.
@@ -70,16 +69,26 @@ def _check_market_open(dt: datetime = None) -> bool:
 
 def recurring_portfolio_value_update():
     while True:
-        time.sleep(PORTFOLIO_VALUE_REFRESH_RATE_S)
+        now = datetime.now()
+
+        next_hour = (now + timedelta(hours=1)).replace(minute=0,
+                                                       second=0, microsecond=0)
+        sleep_seconds = (next_hour - now).total_seconds()
+
+        app.logger.info(f"Next hourly portfolio update scheduled in {
+                        int(sleep_seconds)} seconds at {next_hour.strftime('%H:%M:%S')}")
+        time.sleep(sleep_seconds)
+
         if _check_market_open():
             try:
                 with app.app_context():
                     app.logger.info("Updating portfolio value...")
-                    # add only check from market openings
                     new_value = portfolio_manager.update_portfolio_value()[
                         'total_value']
                     app.logger.info(
-                        f"Update for portfolio value completed with new value: ${new_value}.")
+                        f"Update for portfolio value completed with new value: ${
+                            new_value}."
+                    )
             except Exception as e:
                 app.logger.error(f"Error in background DB job: {
                                  e}", exc_info=True)
