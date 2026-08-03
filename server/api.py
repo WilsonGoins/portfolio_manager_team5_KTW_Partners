@@ -5,8 +5,8 @@ import threading
 from datetime import datetime, time as dt_time, timedelta
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
-from db_manager import DBManager
 from dotenv import load_dotenv
+from db_manager import DBManager
 from finance_manager import FinanceManager
 from portfolio_manager import PortfolioManager
 
@@ -127,9 +127,9 @@ def overview():
         # but no more often than the throttle above allows. A refused refresh
         # still returns the page, just from cache.
         if request.args.get("refresh") == "true" and _claim_refresh():
-            finance_manager.empty_cache()
+            portfolio_manager.empty_caches()
 
-        return jsonify(portfolio_manager.GetOverviewData())
+        return jsonify(portfolio_manager.get_overview_data())
     except Exception as e:
         app.logger.error(f"Failed to get overview data: {e}", exc_info=True)
         return jsonify({"error": "Failed to fetch overview data"}), 500
@@ -138,7 +138,7 @@ def overview():
 @app.route("/api/transactions")
 def transactions():
     try:
-        return jsonify(portfolio_manager.GetTransactions())
+        return jsonify(portfolio_manager.get_transactions())
     except Exception as e:
         app.logger.error(f"Failed to get transactions: {e}", exc_info=True)
         return jsonify({"error": "Failed to fetch transactions"}), 500
@@ -147,7 +147,7 @@ def transactions():
 @app.route("/api/cash")
 def cash():
     try:
-        return jsonify({"cash": portfolio_manager.GetCashAmount()})
+        return jsonify({"cash": portfolio_manager.get_cash_amount()})
     except Exception as e:
         app.logger.error(f"Failed to get cash amount: {e}", exc_info=True)
         return jsonify({"error": "Failed to fetch cash amount"}), 500
@@ -180,7 +180,7 @@ def risk():
     """The Risk page's data: the portfolio's beta, how it breaks down by holding,
     and how much of the portfolio that beta actually describes."""
     try:
-        return jsonify(portfolio_manager.CalculatePortfolioRisk())
+        return jsonify(portfolio_manager.calculate_portfolio_risk())
     except Exception as e:
         app.logger.error(f"Failed to get risk data: {e}", exc_info=True)
         return jsonify({"error": "Failed to fetch risk data"}), 500
@@ -192,10 +192,8 @@ def search():
     app.logger.info(f"Searching Yahoo for {query}.")
     if not query:
         return jsonify([])
-
     try:
-        # TODO call from portfolio_manager instead of finance_manager
-        results = finance_manager.search_securities(query)
+        results = portfolio_manager.search_securities(query)
         return jsonify(results)
     except Exception as e:
         app.logger.error(f"Failed to search securities for '{
@@ -208,7 +206,7 @@ def analytics_movers():
     """Analytics page: the current holding with the biggest gain and the one
     with the biggest loss, by percent move since yesterday's close."""
     try:
-        return jsonify(portfolio_manager.GetBiggestGainerAndLoser())
+        return jsonify(portfolio_manager.get_biggest_gainer_and_loser())
     except Exception as e:
         app.logger.error(f"Failed to get biggest gainer/loser: {
             e}", exc_info=True)
@@ -220,7 +218,7 @@ def analytics_drawdown():
     """Analytics page: the portfolio's single worst decline (max drawdown) and
     single best run (max run-up), found over its full value history."""
     try:
-        return jsonify(portfolio_manager.GetDrawdownAndRunup())
+        return jsonify(portfolio_manager.get_drawdown_and_runup())
     except Exception as e:
         app.logger.error(f"Failed to get drawdown/runup: {
             e}", exc_info=True)
@@ -236,7 +234,7 @@ def buy():
         return jsonify({"error": "ticker, quantity, and price are required"}), 400
 
     try:
-        portfolio_manager.Buy(ticker, quantity, price)
+        portfolio_manager.buy(ticker, quantity, price)
         return jsonify({"status": "success"})
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
@@ -254,7 +252,7 @@ def sell():
         return jsonify({"error": "ticker, quantity, and price are required"}), 400
 
     try:
-        portfolio_manager.Sell(ticker, quantity, price)
+        portfolio_manager.sell(ticker, quantity, price)
         return jsonify({"status": "success"})
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
