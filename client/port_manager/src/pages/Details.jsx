@@ -5,6 +5,11 @@ import { ResponsiveContainer, AreaChart, Area, Tooltip, YAxis, XAxis } from 'rec
 import { formatHoldingType } from '../utils/holdingType';
 import './Details.css';
 
+// Yahoo's descriptions run from a couple of sentences to a couple of thousand
+// characters, so only the ones that overflow the clamp get a toggle -- roughly
+// where the four collapsed lines run out.
+const ABOUT_CLAMP_CHARS = 320;
+
 export function Details() {
   const { symbol } = useParams();
   const navigate = useNavigate();
@@ -17,10 +22,12 @@ export function Details() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [aboutExpanded, setAboutExpanded] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
+      setAboutExpanded(false);   // a new security starts collapsed
 
       const [secRes, overviewRes] = await Promise.all([
         fetch(`/api/search?q=${symbol}`),
@@ -102,6 +109,8 @@ export function Details() {
   const percentChange = (priceChange / previous_close) * 100;
   const isPositive = priceChange >= 0;
   const chartColor = isPositive ? '#10b981' : '#ef4444';
+
+  const isAboutLong = Boolean(description) && description.length > ABOUT_CLAMP_CHARS;
 
   const chartData = performanceHistory[selectedRange] || performanceHistory['1M'] || [];
   const estCost = (curr_price * quantity).toFixed(2);
@@ -207,12 +216,31 @@ export function Details() {
             </div>
           </div>
 
-          {description && (
-            <div className="card about-card">
-              <h3>ABOUT</h3>
-              <p>{description}</p>
-            </div>
-          )}
+          {/* Always rendered: Yahoo returns no description often enough that
+              saying so beats the card silently vanishing from the page. */}
+          <div className="card about-card">
+            <h3>ABOUT {symbol}</h3>
+            {description ? (
+              <>
+                <p className={`about-text${isAboutLong && !aboutExpanded ? ' collapsed' : ''}`}>
+                  {description}
+                </p>
+                {isAboutLong && (
+                  <button
+                    type="button"
+                    className="about-toggle"
+                    onClick={() => setAboutExpanded((expanded) => !expanded)}
+                  >
+                    {aboutExpanded ? 'Click to show less.' : 'Click to read more.'}
+                  </button>
+                )}
+              </>
+            ) : (
+              <p className="about-empty">
+                A description is not available for this security.
+              </p>
+            )}
+          </div>
         </div>
 
         <div className="side-panel">
