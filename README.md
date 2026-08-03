@@ -57,6 +57,7 @@ Then edit `.env`:
 
 ```
 DB_CONNECTION_STRING=postgresql://user:password@host/dbname?sslmode=require
+UPDATE_PORTFOLIO_VALUE=True/False
 ```
 
 `.env` lives at the **repo root** (not in `server/`) and is gitignored — never
