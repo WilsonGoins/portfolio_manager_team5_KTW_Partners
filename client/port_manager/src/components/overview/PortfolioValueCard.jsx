@@ -75,7 +75,7 @@ function cutoffDate(timeframe, latestDate) {
   switch (timeframe) {
     case '1D':
       d.setUTCDate(d.getUTCDate() - 1);
-      break;
+      return d.toISOString(); 
     case '1W':
       d.setUTCDate(d.getUTCDate() - 7);
       break;
@@ -92,6 +92,13 @@ function cutoffDate(timeframe, latestDate) {
   }
 
   return d.toISOString().slice(0, 10);
+}
+
+function parseDateString(dateStr) {
+  if (!dateStr) return null;
+  const hasTime = dateStr.includes(':') || dateStr.includes('GMT') || dateStr.includes('T');
+  const parsed = new Date(hasTime ? dateStr : `${dateStr}T00:00:00Z`);
+  return isNaN(parsed.getTime()) ? null : parsed;
 }
 
 const percent = (value) => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
@@ -202,7 +209,13 @@ export function PortfolioValueCard({ data, summary }) {
             {todayChange}
           </span>
         </div>
-      </div>
+        <div className="info-tooltip-wrapper" tabIndex={0} role="button" aria-label="Recalculation info">
+            <span className="info-icon">i</span>
+            <div className="info-tooltip-box">
+              The Total Portfolio Value is only calculated hourly.
+            </div>
+        </div>
+    </div>
 
       <div className="value-card-controls">
         <div className="timeframe-selector">
@@ -239,28 +252,19 @@ export function PortfolioValueCard({ data, summary }) {
                 <XAxis
                   dataKey="date"
                   tickFormatter={(dateStr) => {
-                    if (!dateStr) return '';
-                    
-                    // Parse directly if it has a timestamp/GMT, otherwise append T00:00:00Z fallback
-                    const hasTime = dateStr.includes(':') || dateStr.includes('GMT') || dateStr.includes('T');
-                    const parsedDate = new Date(hasTime ? dateStr : `${dateStr}T00:00:00Z`);
+                    const parsedDate = parseDateString(dateStr);
+                    if (!parsedDate) return '';
 
-                    // Guard against any invalid dates
-                    if (isNaN(parsedDate.getTime())) return '';
-
-                    // If activeTimeframe is '1D', display time on the X-axis ticks (e.g., "9:30 AM")
                     if (activeTimeframe === '1D') {
                       return new Intl.DateTimeFormat('en-US', {
                         hour: 'numeric',
                         minute: '2-digit',
-                        timeZone: 'America/Toronto', // Or omit for local browser time
+                        timeZone: 'America/Toronto',
                       }).format(parsedDate);
                     }
 
-                    // Otherwise show short date (e.g., "Aug 3")
                     return shortDate.format(parsedDate);
-                  }}
-                  tick={{ fill: '#718096', fontSize: 12 }}
+                  }}                  tick={{ fill: '#718096', fontSize: 12 }}
                   tickLine={false}
                   axisLine={{ stroke: '#e2e8f0' }}
                   minTickGap={32}
