@@ -23,14 +23,23 @@ const compactCurrency = new Intl.NumberFormat('en-US', {
 const shortDate = new Intl.DateTimeFormat('en-US', {
   month: 'short',
   day: 'numeric',
-  timeZone: 'UTC',
+  timeZone: 'America/Toronto',
 });
 
 const longDate = new Intl.DateTimeFormat('en-US', {
   month: 'short',
   day: 'numeric',
   year: 'numeric',
-  timeZone: 'UTC',
+  timeZone: 'America/Toronto',
+});
+
+const longDateTime = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+  timeZone: 'America/Toronto',
 });
 
 // Round tick values covering [min, max] -- steps snap to 1/2/5 x a power of ten
@@ -55,7 +64,13 @@ function niceTicks(min, max, count = 5) {
 // most recent point rather than from today, so the chart still fills in if the
 // snapshots are lagging. Dates stay as strings -- ISO dates compare correctly.
 function cutoffDate(timeframe, latestDate) {
-  const d = new Date(`${latestDate}T00:00:00Z`);
+  if (!latestDate) return null;
+
+  const d = new Date(
+    latestDate.includes('T') ? latestDate : `${latestDate}T00:00:00Z`
+  );
+
+  if (isNaN(d.getTime())) return null;
 
   switch (timeframe) {
     case '1D':
@@ -100,9 +115,10 @@ export function PortfolioValueCard({ data, summary }) {
   const latestValue = summary ? currency.format(summary.total_value) : '--';
 
   const isPositive = (summary?.day_change ?? 0) >= 0;
+  console.log(summary);
   const todayChange = summary
     ? `${isPositive ? '+' : '-'}${currency.format(Math.abs(summary.day_change))} ` +
-      `(${isPositive ? '+' : ''}${summary.day_change_pct.toFixed(2)}%) Today`
+      `(${isPositive ? '+' : ''}${Number(summary.day_change_pct).toFixed(2)}%) Today`
     : '--';
 
   return (
@@ -128,7 +144,6 @@ export function PortfolioValueCard({ data, summary }) {
         ))}
       </div>
 
-      {/* height covers the plot plus the x-axis band, so ticks aren't clipped */}
       <div className="chart-container" style={{ height: '200px', marginTop: '12px' }}>
         {currentChartData.length < 2 ? (
           <p className="chart-empty-message">
@@ -136,13 +151,17 @@ export function PortfolioValueCard({ data, summary }) {
           </p>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            {/* right margin holds the last x-axis label, which is centred on the
-                final point and so overhangs the plot by half its width */}
             <AreaChart data={currentChartData} margin={{ top: 10, right: 26, left: 0, bottom: 0 }}>
               <CartesianGrid vertical={false} stroke="#f0f0f0" />
               <XAxis
                 dataKey="date"
-                tickFormatter={(date) => shortDate.format(new Date(`${date}T00:00:00Z`))}
+                tickFormatter={(dateStr) => {
+                  if (!dateStr) return '';
+                  const hasTime = dateStr.includes(':') || dateStr.includes('GMT');
+                  const parsedDate = new Date(hasTime ? dateStr : `${dateStr}T00:00:00Z`);
+
+                  return shortDate.format(parsedDate);
+                }}
                 tick={{ fill: '#718096', fontSize: 12 }}
                 tickLine={false}
                 axisLine={{ stroke: '#e2e8f0' }}
@@ -160,7 +179,16 @@ export function PortfolioValueCard({ data, summary }) {
               />
               <Tooltip
                 formatter={(value) => [currency.format(value), 'Value']}
-                labelFormatter={(date) => longDate.format(new Date(`${date}T00:00:00Z`))}
+                labelFormatter={(dateStr) => {
+                  if (!dateStr) return '';
+
+                  const hasTime = dateStr.includes(':') || dateStr.includes('GMT');
+                  const parsedDate = new Date(hasTime ? dateStr : `${dateStr}T00:00:00Z`);
+
+                  return activeTimeframe === '1D'
+                    ? longDateTime.format(parsedDate)
+                    : longDate.format(parsedDate);
+                }}
                 contentStyle={{
                   borderRadius: '8px',
                   border: '1px solid #e2e8f0',

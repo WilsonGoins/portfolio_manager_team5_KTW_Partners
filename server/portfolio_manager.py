@@ -22,10 +22,7 @@ class PortfolioManager:
         #  LastUpdated: "2026-07-30T10:20:00-04:00"
         # }
 
-    def GetOverviewData(self):
-        finalRes = {}
-        # first we get the data on holdings and structure it for the holdings table
-        # this is a list of Holding objects, each with {ticker, name, h_type, quantity_shares, ...}
+    def _get_holdings_with_price(self) -> dict:
         dbHoldingsRes = self.db_manager.get_holdings()
 
         # one batched lookup rather than a call per holding inside the loop below:
@@ -43,7 +40,12 @@ class PortfolioManager:
                                       "num_shares": holding.quantity_shares, "curr_price": yahooRes["current_price"],
                                       "previous_close": yahooRes["previous_close"], "sector": yahooRes.get("sector") or "Other"})
 
-        # now clean up the data to have all the necessary information (cash is folded in as its own holding)
+        return holdingsWithPrice
+
+    def GetOverviewData(self):
+        finalRes = {}
+
+        holdingsWithPrice = self._get_holdings_with_price()
         enrichedHoldings = self.CalculateHoldingInfo(holdingsWithPrice)
         finalRes["HoldingsTable"] = enrichedHoldings
 
@@ -57,7 +59,8 @@ class PortfolioManager:
             enrichedHoldings, "sector")
 
         # headline numbers for the portfolio value card
-        summary = self.CalculatePortfolioSummary(enrichedHoldings)
+        summary = self.db_manager.get_portfolio_values(
+        )[0].to_dict()  # WHY IS THIS NOT DESCENDING ORDER
         finalRes["PortfolioSummary"] = summary
 
         # the value chart's series: stored snapshots, capped with today's live
@@ -110,13 +113,12 @@ class PortfolioManager:
         history = []
         for pv in sorted(dbRes, key=lambda pv: pv.p_date):
             history.append({
-                "date": pv.p_date.strftime("%Y-%m-%d"),
-                # Decimal isn't JSON serializable
+                "date": pv.p_date.isoformat(),
                 "value": float(pv.value),
             })
 
         if todaysValue is not None:
-            today = datetime.now().strftime("%Y-%m-%d")
+            today = datetime.now().isoformat()
             if history and history[-1]["date"] == today:
                 history[-1]["value"] = todaysValue
             else:
@@ -332,3 +334,13 @@ class PortfolioManager:
 
     def get_news(self) -> list[dict]:
         return self.finance_manager.get_news()
+
+    def update_portfolio_value(self) -> float:
+        holdings_with_price = self._get_holdings_with_price()
+        enriched_holdings = self.CalculateHoldingInfo(holdings_with_price)
+
+        summary = self.CalculatePortfolioSummary(enriched_holdings)
+        portfolio_value: float = summary['total_value']
+        self.db_manager.add_portfolio_value(
+            datetime.now(), portfolio_value, summary['day_change'], summary['day_change_pct'])
+        return summary

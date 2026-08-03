@@ -1,7 +1,8 @@
 import logging
 import os
 import time
-from threading import Lock
+import threading
+from datetime import datetime
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from db_manager import DBManager
@@ -11,6 +12,9 @@ from portfolio_manager import PortfolioManager
 
 load_dotenv()
 DB_CONNECTION_STR = os.getenv("DB_CONNECTION_STRING")
+UPDATE_PORTFOLIO_VALUE = bool(os.getenv("UPDATE_PORTFOLIO_VALUE")) or False
+print(f"UPDATE_PORTFOLIO_VALUE={UPDATE_PORTFOLIO_VALUE}")
+PORTFOLIO_VALUE_REFRESH_RATE_S = 3600
 
 app = Flask(__name__)
 CORS(app)
@@ -28,7 +32,7 @@ portfolio_manager = PortfolioManager(db_manager, finance_manager)
 # One real refresh per window; the clicks in between are answered from cache.
 _REFRESH_MIN_INTERVAL_SECONDS = 10
 _last_refresh_at = None
-_refresh_lock = Lock()
+_refresh_lock = threading.Lock()
 
 
 def _claim_refresh() -> bool:
@@ -44,6 +48,42 @@ def _claim_refresh() -> bool:
 
         _last_refresh_at = now
         return True
+
+
+def _check_market_open(dt: datetime) -> bool:
+    if dt is None:
+        dt = datetime.now()
+
+    is_weekday = dt.weekday() < 5
+
+    start_time = time(9, 0)
+    end_time = time(16, 0)
+    is_during_hours = start_time <= dt.time() <= end_time
+
+    return is_weekday and is_during_hours
+
+
+def recurring_portfolio_value_update():
+    while True:
+        time.sleep(PORTFOLIO_VALUE_REFRESH_RATE_S)
+        if _check_market_open():
+            try:
+                with app.app_context():
+                    app.logger.info("Updating portfolio value...")
+                    # add only check from market openings
+                    new_value = portfolio_manager.update_portfolio_value()[
+                        'total_value']
+                    app.logger.info(
+                        f"Update for portfolio value completed with new value: ${new_value}.")
+            except Exception as e:
+                app.logger.error(f"Error in background DB job: {
+                                 e}", exc_info=True)
+
+
+if UPDATE_PORTFOLIO_VALUE:
+    bg_thread = threading.Thread(
+        target=recurring_portfolio_value_update, daemon=True)
+    bg_thread.start()
 
 
 @app.route("/")
