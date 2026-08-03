@@ -1,0 +1,351 @@
+/* Risk is not good or bad, so nothing here uses the green/red from Card.css --
+   a high beta is a choice, not a mistake, and colouring it red would editorialise
+   a number that is meant to inform. The scale is neutral instead: the brand teal
+   carries "risk" as an identity, and the level chip is the only place a warm
+   colour appears, where it means "above the market" rather than "wrong". */
+
+.risk-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.risk-card-header h3 {
+  margin-bottom: 0;
+}
+
+.risk-info-toggle {
+  font-family: inherit;
+  font-size: 0.95rem;
+  line-height: 1;
+  color: #a0aec0;
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.risk-info-toggle:hover,
+.risk-info-toggle[aria-expanded="true"] {
+  color: #0d7682;
+}
+
+.risk-info-body {
+  margin: 0 0 20px 0;
+  padding: 12px 14px;
+  background-color: #f8fafc;
+  border-left: 2px solid #0d7682;
+  border-radius: 0 6px 6px 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: #4a5568;
+}
+
+/* ---- headline ---------------------------------------------------------- */
+
+.risk-headline {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+/* proportional figures, not tabular -- equal-width digits make a number this
+   large read loose */
+.risk-beta {
+  font-size: 2.75rem;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.risk-beta-label {
+  font-size: 0.8rem;
+  color: #a0aec0;
+  margin-right: 4px;
+}
+
+.risk-level-chip {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+/* diverging around the market: cool below it, neutral at it, warm above it */
+.risk-level-conservative {
+  color: #0d7682;
+  background-color: #f0fdfa;
+}
+
+.risk-level-market {
+  color: #475569;
+  background-color: #f1f5f9;
+}
+
+.risk-level-aggressive {
+  color: #b45309;
+  background-color: #fffbeb;
+}
+
+/* ---- meter ------------------------------------------------------------- */
+
+.risk-meter {
+  margin: 20px 0 4px 0;
+}
+
+.risk-meter-track {
+  position: relative;
+  height: 8px;
+  background-color: #dde3ea;
+  border-radius: 999px;
+}
+
+/* Darker than the track by a clear step, so the band the "Market" chip is decided
+   by reads as a distinct region rather than a faint tint. 3.3:1 against the track
+   clears the 3:1 a non-text element needs, while staying light enough that the
+   near-black marker on top of it doesn't disappear. */
+.risk-meter-band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background-color: #6d7c93;
+  border-radius: 2px;
+}
+
+.risk-meter-marker {
+  position: absolute;
+  top: 50%;
+  width: 3px;
+  height: 20px;
+  background-color: #0f172a;
+  border-radius: 2px;
+  /* the 2px surface ring keeps the marker legible where it overlaps the band */
+  box-shadow: 0 0 0 2px #ffffff;
+  transform: translate(-50%, -50%);
+}
+
+.risk-meter-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 0.7rem;
+  color: #a0aec0;
+}
+
+/* ---- takeaway ---------------------------------------------------------- */
+
+/* Tinted with the brand teal rather than the page grey the ⓘ explainer uses, so
+   the two read as different kinds of aside: that one is a definition you opened,
+   this one is the page pointing at something in your own portfolio. */
+.risk-takeaway {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 20px 0 0 0;
+  padding: 14px 16px;
+  background-color: #e6f7f7;
+  border: 1px solid #9dd3d8;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: #143d42;
+}
+
+.risk-takeaway-prefix {
+  flex-shrink: 0;
+  font-weight: 700;
+  color: #0d7682;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- dumbbell ---------------------------------------------------------- */
+
+.risk-dumbbell {
+  margin-top: 20px;
+}
+
+.dumbbell-legend {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+  font-size: 0.72rem;
+  color: #718096;
+}
+
+.dumbbell-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dumbbell-legend-beta {
+  margin-left: auto;
+}
+
+.dumbbell-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.dumbbell-row {
+  display: flex;
+}
+
+/* The row's own contents are the button, so a click anywhere along it opens the
+   security -- the same affordance the Overview holdings table gives its rows,
+   and reachable by keyboard here since it is a real button. */
+.dumbbell-row-button,
+.dumbbell-row-static {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 32px;
+  padding: 0 6px;
+  margin: 0 -6px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  /* stated, not inherited: a <button> is border-box by default and a <span> is
+     not, so without this the cash row's padding is added to its 100% width and
+     its numbers sit a few pixels right of every other row's */
+  box-sizing: border-box;
+}
+
+.dumbbell-row-button {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.dumbbell-row-button:hover {
+  background-color: #f1f5f9;
+}
+
+.dumbbell-row-button:focus-visible {
+  outline: 2px solid #0d7682;
+  outline-offset: -2px;
+}
+
+.dumbbell-row-muted {
+  opacity: 0.55;
+}
+
+.dumbbell-symbol {
+  width: 52px;
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #4a5568;
+}
+
+.dumbbell-track {
+  position: relative;
+  flex: 1;
+  height: 100%;
+  min-width: 80px;
+}
+
+.dumbbell-connector {
+  position: absolute;
+  top: 50%;
+  height: 2px;
+  background-color: #cbd5e1;
+  transform: translateY(-50%);
+}
+
+.dumbbell-dot {
+  position: absolute;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* the recessive half of the pair: deliberately low-chroma so the risk dot reads
+   as the emphasis. Its contrast sits just under 3:1, which is why every row
+   prints both values as text rather than leaving them to the marks alone. */
+.dumbbell-dot-money {
+  background-color: #8695ac;
+}
+
+.dumbbell-dot-risk {
+  background-color: #0d7682;
+  /* surface ring so the two stay separable where a row's values nearly match
+     and the dots overlap */
+  box-shadow: 0 0 0 2px #ffffff;
+}
+
+.dumbbell-dot-static {
+  position: static;
+  transform: none;
+  flex-shrink: 0;
+}
+
+.dumbbell-values {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  width: 120px;
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  /* these align down the column, so equal-width digits are right here */
+  font-variant-numeric: tabular-nums;
+}
+
+.dumbbell-value {
+  color: #718096;
+}
+
+.dumbbell-value-risk {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.dumbbell-arrow {
+  color: #cbd5e1;
+}
+
+.dumbbell-beta {
+  width: 40px;
+  flex-shrink: 0;
+  text-align: right;
+  font-size: 0.78rem;
+  color: #a0aec0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- footnote ---------------------------------------------------------- */
+
+.risk-footnote {
+  margin: 16px 0 0 0;
+  padding-top: 12px;
+  border-top: 1px solid #edf2f7;
+  font-size: 0.72rem;
+  color: #a0aec0;
+}
+
+@media (max-width: 720px) {
+  .dumbbell-values {
+    width: 96px;
+  }
+
+  .dumbbell-beta {
+    display: none;
+  }
+
+  .dumbbell-legend-beta {
+    display: none;
+  }
+}

@@ -103,17 +103,17 @@ export function ExploreSecurities() {
 
       {error && <div className="error-banner">{error}</div>}
 
-      <div className="section-header">
-        <h2>{showingQueryResults ? `Results for "${searchText}"` : "Top Market Movers"}</h2>
-        {!showingQueryResults && <span className="section-subtitle">Today's top performing assets</span>}
-      </div>
-
       <Search
         query={searchQuery}
         onQueryChange={handleQueryChange}
         onSearch={handleBackendSearch}
         isLoading={loading}
       />
+
+      <div className="section-header">
+        <h2>{showingQueryResults ? `Results for "${searchText}"` : "Top Market Movers"}</h2>
+        {!showingQueryResults && <span className="section-subtitle">Today's top performing assets</span>}
+      </div>
 
       <div className="securities">
         {loading ? (

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
+import { formatHoldingType } from '../../utils/holdingType';
 import './AllocationCard.css';
 
 const COLORS = ['#008080', '#56a3a3', '#8ac2c2', '#aedbdb', '#6f42c1'];
@@ -19,7 +20,7 @@ function AllocationTooltip({ active, payload }) {
     <div className="allocation-tooltip">
       <div className="allocation-tooltip-type">
         <span className="legend-icon" style={{ backgroundColor: slice.fill }} />
-        {slice.label}
+        {formatHoldingType(slice.label)}
       </div>
       <div className="allocation-tooltip-value">{currency.format(slice.market_value)}</div>
       <div className="allocation-tooltip-pct">{slice.allocation_pct.toFixed(1)}% of portfolio</div>
@@ -44,6 +45,17 @@ export function AllocationCard({ dataByType, dataBySector }) {
       fill: COLORS[index % COLORS.length],
     })),
     [activeData],
+  );
+
+  // The list below the chart reads largest-first, which is the order someone
+  // scanning for "where is my money" wants. Sorted here rather than upstream on
+  // purpose: the colours above are keyed to each slice's position in the API's
+  // label-sorted list, so sorting before the fill is attached would repaint the
+  // whole chart whenever two slices swapped places. Sorting a copy afterwards
+  // reorders the rows while every slice keeps the colour it already had.
+  const legendData = useMemo(
+    () => [...chartData].sort((a, b) => b.allocation_pct - a.allocation_pct),
+    [chartData],
   );
 
   return (
@@ -107,11 +119,11 @@ export function AllocationCard({ dataByType, dataBySector }) {
             </div>
 
             <div className="allocation-rows">
-              {chartData.map((entry) => (
+              {legendData.map((entry) => (
                 <div key={entry.label} className="allocation-row">
                   <div className="allocation-identity">
                     <span className="legend-icon" style={{ backgroundColor: entry.fill }} />
-                    <span className="allocation-type">{entry.label}</span>
+                    <span className="allocation-type">{formatHoldingType(entry.label)}</span>
                   </div>
                   <div className="allocation-figures">
                     <span className="allocation-value">{currency.format(entry.market_value)}</span>

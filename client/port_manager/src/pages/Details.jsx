@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { DetailsSkeleton } from '../components/details/DetailsSkeleton'
 import { useParams, useNavigate } from 'react-router-dom';
 import { ResponsiveContainer, AreaChart, Area, Tooltip, YAxis, XAxis } from 'recharts';
+import { formatHoldingType } from '../utils/holdingType';
 import './Details.css';
 
 export function Details() {
@@ -119,7 +120,7 @@ export function Details() {
               <div>
                 <div className="title-row">
                   <h1 className="symbol">{symbol}</h1>
-                  <span className="type-badge">{h_type}</span>
+                  <span className="type-badge">{formatHoldingType(h_type)}</span>
                 </div>
                 <p className="company-name">{name}</p>
                 <div className="price-row">

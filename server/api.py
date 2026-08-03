@@ -2,7 +2,7 @@ import logging
 import os
 import time
 import threading
-from datetime import datetime
+from datetime import datetime, time as dt_time
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from db_manager import DBManager
@@ -50,14 +50,14 @@ def _claim_refresh() -> bool:
         return True
 
 
-def _check_market_open(dt: datetime) -> bool:
+def _check_market_open(dt: datetime = None) -> bool:
     if dt is None:
         dt = datetime.now()
 
     is_weekday = dt.weekday() < 5
 
-    start_time = time(9, 0)
-    end_time = time(16, 0)
+    start_time = dt_time(9, 0)
+    end_time = dt_time(16, 0)
     is_during_hours = start_time <= dt.time() <= end_time
 
     return is_weekday and is_during_hours
@@ -149,6 +149,17 @@ def get_top_movers():
         return jsonify({"error": "Failed to fetch watchlist data"}), 500
 
 
+@app.route("/api/risk")
+def risk():
+    """The Risk page's data: the portfolio's beta, how it breaks down by holding,
+    and how much of the portfolio that beta actually describes."""
+    try:
+        return jsonify(portfolio_manager.CalculatePortfolioRisk())
+    except Exception as e:
+        app.logger.error(f"Failed to get risk data: {e}", exc_info=True)
+        return jsonify({"error": "Failed to fetch risk data"}), 500
+
+
 @app.route("/api/search")
 def search():
     query = request.args.get("q", "").strip()
@@ -164,6 +175,30 @@ def search():
         app.logger.error(f"Failed to search securities for '{
             query}': {e}", exc_info=True)
         return jsonify({"error": "Failed to search securities"}), 500
+
+
+@app.route("/api/analytics/movers")
+def analytics_movers():
+    """Analytics page: the current holding with the biggest gain and the one
+    with the biggest loss, by percent move since yesterday's close."""
+    try:
+        return jsonify(portfolio_manager.GetBiggestGainerAndLoser())
+    except Exception as e:
+        app.logger.error(f"Failed to get biggest gainer/loser: {
+            e}", exc_info=True)
+        return jsonify({"error": "Failed to fetch biggest gainer/loser"}), 500
+
+
+@app.route("/api/analytics/drawdown")
+def analytics_drawdown():
+    """Analytics page: the portfolio's single worst decline (max drawdown) and
+    single best run (max run-up), found over its full value history."""
+    try:
+        return jsonify(portfolio_manager.GetDrawdownAndRunup())
+    except Exception as e:
+        app.logger.error(f"Failed to get drawdown/runup: {
+            e}", exc_info=True)
+        return jsonify({"error": "Failed to fetch drawdown/runup"}), 500
 
 
 @app.route("/api/buy", methods=["POST"])

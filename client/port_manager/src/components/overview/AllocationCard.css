@@ -9,10 +9,13 @@
   gap: 12px;
 }
 
+/* The track carries the weight here: at nearly card-white it read as a ghost,
+   and the selected side had nothing to sit against. Darker, the control reads as
+   a segmented switch and the white pill is what stands out. */
 .allocation-toggle {
   display: flex;
-  background-color: #f7fafc;
-  border: 1px solid #e2e8f0;
+  background-color: #dde3ea;
+  border: 1px solid #cbd5e1;
   border-radius: 8px;
   padding: 2px;
 }
@@ -20,7 +23,7 @@
 .allocation-toggle-btn {
   border: none;
   background: transparent;
-  color: #718096;
+  color: #475569;
   font-size: 0.8125rem;
   font-weight: 500;
   padding: 4px 12px;
@@ -30,13 +33,15 @@
 }
 
 .allocation-toggle-btn:hover {
-  color: #1a202c;
+  color: #0f172a;
 }
 
 .allocation-toggle-btn.active {
   background-color: #ffffff;
   color: #008080;
-  box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.06);
+  /* a touch stronger than before, since the pill now sits on a darker track and
+     the shadow is what gives it its lifted edge */
+  box-shadow: 0px 1px 3px rgba(15, 23, 42, 0.12);
 }
 
 /* Same header + hairline-divider structure as the watchlist, so the two
