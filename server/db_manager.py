@@ -129,7 +129,8 @@ class DBManager():
             self.logger.debug("Cache[MISS] \"portfolio_values\"")
 
         with self._cursor() as cur:
-            cur.execute("SELECT * FROM portfolio_value")
+            cur.execute(
+                "SELECT p_date, value as total_value, day_change, day_change_pct FROM portfolio_value ORDER BY p_date DESC")
 
             portfolio_values: list[PortfolioValue] = []
             for pv_dict in cur.fetchall():
@@ -235,6 +236,14 @@ class DBManager():
             return transactions
 
     # -------------------- CREATE --------------------
+
+    def add_portfolio_value(self, date: datetime, new_value: float, change: float, change_pct: float) -> list[float]:
+        with self._cursor() as cur:
+            cur.execute("INSERT INTO portfolio_value (p_date, value, day_change, day_change_pct) VALUES (%s, %s, %s, %s)",
+                        [date, new_value, change, change_pct])
+            self.empty_cache("portfolio_values")
+
+        return self.get_portfolio_values()
 
     def add_holding(self, holding: Holding) -> list[Holding]:
         with self._cursor() as cur:
