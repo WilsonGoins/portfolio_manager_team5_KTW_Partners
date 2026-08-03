@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import './PortfolioValueCard.css';
 
 const TIMEFRAMES = ['1D', '1W', '1M', 'YTD', '1Y'];
@@ -79,8 +79,32 @@ function cutoffDate(timeframe, latestDate) {
   return d.toISOString().slice(0, 10);
 }
 
+const percent = (value) => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
+
+function ComparisonTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+
+  return (
+    <div className="comparison-tooltip">
+      <div className="comparison-tooltip-date">
+        {longDate.format(new Date(`${label}T00:00:00Z`))}
+      </div>
+      {payload.map((entry) => (
+        entry.value != null && (
+          <div key={entry.dataKey} className="comparison-tooltip-row">
+            <span className="legend-dot" style={{ backgroundColor: entry.stroke }} />
+            <span className="comparison-tooltip-label">{entry.name}</span>
+            <span className="comparison-tooltip-value">{percent(entry.value)}</span>
+          </div>
+        )
+      ))}
+    </div>
+  );
+}
+
 export function PortfolioValueCard({ data, summary }) {
   const [activeTimeframe, setActiveTimeframe] = useState('1M');
+  const [showBenchmark, setShowBenchmark] = useState(false);
 
   const currentChartData = useMemo(() => {
     const history = data ?? [];
@@ -89,6 +113,30 @@ export function PortfolioValueCard({ data, summary }) {
     const cutoff = cutoffDate(activeTimeframe, history[history.length - 1].date);
     return cutoff ? history.filter((point) => point.date >= cutoff) : history;
   }, [data, activeTimeframe]);
+
+  // Both lines are re-anchored to 0% at the *first point of the currently
+  // selected timeframe* -- not one fixed anchor for all history -- so
+  // switching from 1M to 1Y re-normalizes rather than showing a shrunken
+  // corner of a much bigger swing. The benchmark's own anchor is the first
+  // point in the slice that actually has a benchmark_value, in case the
+  // portfolio's history reaches back further than the benchmark's.
+  const comparisonChartData = useMemo(() => {
+    if (!showBenchmark || !currentChartData.length) return [];
+
+    const portfolioAnchor = currentChartData[0].value;
+    const benchmarkAnchorPoint = currentChartData.find((point) => point.benchmark_value != null);
+    const benchmarkAnchor = benchmarkAnchorPoint?.benchmark_value ?? null;
+
+    return currentChartData.map((point) => ({
+      date: point.date,
+      portfolio_return_pct: portfolioAnchor
+        ? (point.value / portfolioAnchor - 1) * 100
+        : 0,
+      benchmark_return_pct: (benchmarkAnchor && point.benchmark_value != null)
+        ? (point.benchmark_value / benchmarkAnchor - 1) * 100
+        : null,
+    }));
+  }, [currentChartData, showBenchmark]);
 
   const yTicks = useMemo(() => {
     if (!currentChartData.length) return [];
@@ -117,20 +165,79 @@ export function PortfolioValueCard({ data, summary }) {
         </div>
       </div>
 
-      <div className="timeframe-selector">
-        {TIMEFRAMES.map((tf) => (
-          <button
-            key={tf}
-            className={activeTimeframe === tf ? 'active' : ''}
-            onClick={() => setActiveTimeframe(tf)}>
-            {tf}
-          </button>
-        ))}
+      <div className="value-card-controls">
+        <div className="timeframe-selector">
+          {TIMEFRAMES.map((tf) => (
+            <button
+              key={tf}
+              className={activeTimeframe === tf ? 'active' : ''}
+              onClick={() => setActiveTimeframe(tf)}>
+              {tf}
+            </button>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          className={`benchmark-toggle ${showBenchmark ? 'active' : ''}`}
+          aria-pressed={showBenchmark}
+          onClick={() => setShowBenchmark((prev) => !prev)}
+        >
+          Compare to S&amp;P 500
+        </button>
       </div>
 
       {/* height covers the plot plus the x-axis band, so ticks aren't clipped */}
       <div className="chart-container" style={{ height: '200px', marginTop: '12px' }}>
-        {currentChartData.length < 2 ? (
+        {showBenchmark ? (
+          comparisonChartData.length < 2 ? (
+            <p className="chart-empty-message">
+              Not enough history to chart {activeTimeframe}.
+            </p>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={comparisonChartData} margin={{ top: 10, right: 26, left: 0, bottom: 0 }}>
+                <CartesianGrid vertical={false} stroke="#f0f0f0" />
+                <XAxis
+                  dataKey="date"
+                  tickFormatter={(date) => shortDate.format(new Date(`${date}T00:00:00Z`))}
+                  tick={{ fill: '#718096', fontSize: 12 }}
+                  tickLine={false}
+                  axisLine={{ stroke: '#e2e8f0' }}
+                  minTickGap={32}
+                  tickMargin={8}
+                />
+                <YAxis
+                  tickFormatter={(value) => `${value.toFixed(0)}%`}
+                  tick={{ fill: '#718096', fontSize: 12 }}
+                  tickLine={false}
+                  axisLine={false}
+                  width={48}
+                />
+                <Tooltip content={<ComparisonTooltip />} />
+
+                <Line
+                  type="monotone"
+                  dataKey="portfolio_return_pct"
+                  name="Your Portfolio"
+                  stroke="#008080"
+                  strokeWidth={2}
+                  dot={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="benchmark_return_pct"
+                  name="S&P 500"
+                  stroke="#64748b"
+                  strokeWidth={2}
+                  strokeDasharray="4 3"
+                  dot={false}
+                  connectNulls={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )
+        ) : currentChartData.length < 2 ? (
           <p className="chart-empty-message">
             Not enough history to chart {activeTimeframe}.
           </p>

@@ -48,7 +48,15 @@
   display: flex;
   justify-content: flex-start;
   gap: 8px;
+}
+
+.value-card-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-top: 16px;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .timeframe-selector button {
@@ -65,4 +73,61 @@
   background-color: #008080;
   border-color: #008080;
   color: #ffffff;
+}
+
+.benchmark-toggle {
+  background: none;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  color: #718096;
+  font-size: 0.75rem;
+  padding: 6px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.benchmark-toggle.active {
+  background-color: #ecfdf5;
+  border-color: #10b981;
+  color: #047857;
+}
+
+.legend-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.comparison-tooltip {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.8125rem;
+}
+
+.comparison-tooltip-date {
+  color: #718096;
+  font-size: 0.75rem;
+  margin-bottom: 4px;
+}
+
+.comparison-tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+.comparison-tooltip-label {
+  color: #4a5568;
+}
+
+.comparison-tooltip-value {
+  margin-left: auto;
+  font-weight: 600;
+  color: #1a202c;
+  font-variant-numeric: tabular-nums;
 }
