@@ -70,8 +70,7 @@ class _TTLCache:
             # still over: drop the oldest until we fit
             overflow = len(self._entries) - self._max_entries
             if overflow > 0:
-                oldest = sorted(
-                    self._entries, key=lambda k: self._entries[k][1])
+                oldest = sorted(self._entries, key=lambda k: self._entries[k][1])
                 for k in oldest[:overflow]:
                     del self._entries[k]
 
@@ -447,8 +446,7 @@ class FinanceManager:
             info = stock.info
 
             current_price = (
-                info.get("currentPrice") or info.get(
-                    "regularMarketPrice") or 0.0
+                info.get("currentPrice") or info.get("regularMarketPrice") or 0.0
             )
             previous_close = info.get("previousClose") or current_price
 
@@ -461,8 +459,7 @@ class FinanceManager:
             pe_formatted = round(pe, 1) if pe is not None else "N/A"
 
             description = (
-                info.get("longBusinessSummary") or info.get(
-                    "description") or None
+                info.get("longBusinessSummary") or info.get("description") or None
             )
 
             details = {
@@ -577,15 +574,13 @@ class FinanceManager:
             try:
                 stories = yf.Ticker(ticker).news or []
             except Exception as e:
-                self.logger.warning(
-                    f"Failed to fetch news for '{ticker}': {e}")
+                self.logger.warning(f"Failed to fetch news for '{ticker}': {e}")
                 continue
 
             for news_item in stories:
                 content = news_item.get("content", news_item)
                 title = content.get("title")
-                link = content.get("canonicalUrl", {}).get(
-                    "url") or content.get("link")
+                link = content.get("canonicalUrl", {}).get("url") or content.get("link")
 
                 if not (title and link):  # if nothing to show, go to next story
                     continue
@@ -598,8 +593,7 @@ class FinanceManager:
                 ) or content.get("publisher", "Yahoo Finance")
 
                 image_url = None
-                thumbnail_data = content.get(
-                    "thumbnail") or news_item.get("thumbnail")
+                thumbnail_data = content.get("thumbnail") or news_item.get("thumbnail")
 
                 if isinstance(thumbnail_data, dict):
                     resolutions = thumbnail_data.get("resolutions", [])

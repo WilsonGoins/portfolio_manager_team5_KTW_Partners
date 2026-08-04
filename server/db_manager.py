@@ -47,8 +47,7 @@ class DBManager:
         except Exception as e:
             self.logger.error(f"Failed to connect to database: {
                               e}", exc_info=True)
-            self.logger.error(
-                "WE SHOULD RERAISE HERE TO BE HANDLED IN API CONTROLLER")
+            self.logger.error("WE SHOULD RERAISE HERE TO BE HANDLED IN API CONTROLLER")
 
     @contextmanager
     def _cursor(self) -> Iterator[Cursor]:
@@ -73,8 +72,7 @@ class DBManager:
         """
         if key is None:
             self._cache = {}
-            self._enable_cache and self.logger.debug(
-                "Cache[DELETE] Cleared all keys.")
+            self._enable_cache and self.logger.debug("Cache[DELETE] Cleared all keys.")
         else:
             self._cache.pop(key, None)
             self._enable_cache and self.logger.debug(
@@ -148,8 +146,7 @@ class DBManager:
             self.logger.debug(f'Cache[MISS] "pv:{p_date}"')
 
         with self._cursor() as cur:
-            cur.execute(
-                "SELECT * FROM portfolio_value WHERE p_date = %s", [p_date])
+            cur.execute("SELECT * FROM portfolio_value WHERE p_date = %s", [p_date])
 
             pv_dict = cur.fetchone()
             if pv_dict is None:
@@ -209,8 +206,7 @@ class DBManager:
             self.logger.debug(f'Cache[MISS] "holding:{ticker_symbol}"')
 
         with self._cursor() as cur:
-            cur.execute("SELECT * FROM holdings WHERE ticker = %s",
-                        [ticker_symbol])
+            cur.execute("SELECT * FROM holdings WHERE ticker = %s", [ticker_symbol])
 
             holding_dict = cur.fetchone()
             if holding_dict is None:
@@ -268,8 +264,7 @@ class DBManager:
             self.logger.debug(f'Cache[MISS] "transaction:{trans_id}"')
 
         with self._cursor() as cur:
-            cur.execute(
-                "SELECT * FROM transactions WHERE trans_id = %s", [trans_id])
+            cur.execute("SELECT * FROM transactions WHERE trans_id = %s", [trans_id])
 
             transaction_dict = cur.fetchone()
             if transaction_dict is None:
@@ -305,8 +300,7 @@ class DBManager:
 
             if self._enable_cache:
                 self._cache["transactions"] = transactions
-                self.logger.debug(
-                    f'CACHE[UPDATE] "transactions": {transactions}')
+                self.logger.debug(f'CACHE[UPDATE] "transactions": {transactions}')
             return transactions
 
     # -------------------- CREATE --------------------
@@ -346,8 +340,7 @@ class DBManager:
         with self._cursor() as cur:
             cur.execute(
                 "INSERT INTO holdings (ticker, name, h_type, quantity_shares) VALUES (%s, %s, %s, %s)",
-                [holding.ticker, holding.name,
-                    holding.h_type, holding.quantity_shares],
+                [holding.ticker, holding.name, holding.h_type, holding.quantity_shares],
             )
             self._empty_holding_cache(holding.ticker)
 
@@ -391,8 +384,7 @@ class DBManager:
         with self._cursor() as cur:
             cur.execute(
                 "UPDATE holdings SET name=%s, h_type=%s, quantity_shares=%s WHERE ticker=%s",
-                [holding.name, holding.h_type,
-                    holding.quantity_shares, holding.ticker],
+                [holding.name, holding.h_type, holding.quantity_shares, holding.ticker],
             )
             self._empty_holding_cache(holding.ticker)
 
@@ -435,8 +427,7 @@ class DBManager:
             list[Holding]: Updated list of remaining current holdings.
         """
         with self._cursor() as cur:
-            cur.execute("DELETE FROM holdings WHERE ticker = %s",
-                        [holding.ticker])
+            cur.execute("DELETE FROM holdings WHERE ticker = %s", [holding.ticker])
             self._empty_holding_cache(holding.ticker)
 
         return self.get_holdings()
@@ -452,8 +443,7 @@ class DBManager:
         """
         with self._cursor() as cur:
             cur.execute(
-                "DELETE FROM transactions WHERE trans_id = %s", [
-                    transaction.trans_id]
+                "DELETE FROM transactions WHERE trans_id = %s", [transaction.trans_id]
             )
             self.empty_cache(key="transactions")
 

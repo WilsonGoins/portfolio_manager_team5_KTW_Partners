@@ -78,10 +78,8 @@ def recurring_portfolio_value_update():
         )
         sleep_seconds = (next_hour - now).total_seconds()
 
-        app.logger.info(
-            f"Next hourly portfolio update scheduled in {
-                        int(sleep_seconds)} seconds at {next_hour.strftime('%H:%M:%S')}"
-        )
+        app.logger.info(f"Next hourly portfolio update scheduled in {
+                int(sleep_seconds)} seconds at {next_hour.strftime('%H:%M:%S')}")
         time.sleep(sleep_seconds)
 
         if _check_market_open():

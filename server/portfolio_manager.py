@@ -1,15 +1,85 @@
-import bisect
-from datetime import datetime, timezone
-from typing import List, Optional
-
+import re
+import os
+from collections import namedtuple
 from db_items import Holding, Transaction
 from db_manager import DBManager
 from finance_manager import FinanceManager
+from typing import List, Optional
+from datetime import datetime, timezone
+import bisect
 
 _CONSERVATIVE_BETA_CEILING = 0.8
 _MARKET_BETA_CEILING = 1.2
 # difference threshold between a holding's share of the risk and a holidng's share of the portfolio
 _RISK_HIGHLIGHT_MIN_GAP_PCT = 3.0
+
+# --- TEMPORARY: seed-transaction fallback for cost basis -------------------
+# A local dev database seeded before db/seed_dummy_data.sql was reconciled
+# (or never reseeded since) has holdings rows for the demo tickers with no
+# matching transaction rows behind them, so CalculateCostBasis has nothing to
+# compute their average cost from. Rather than hand-copy that file's
+# transaction rows here (which would silently drift out of sync the next
+# time someone edits the seed file), this reads and parses that file
+# directly, so it's never a second copy of the data -- just a different view
+# of the same one file. Used ONLY for a ticker that has zero real rows in the
+# transactions table; a ticker with any real history always uses that
+# instead and is never blended with this fallback.
+# NOTE: db/ is excluded from the Vercel deployment (see .vercelignore), so
+# this file won't exist there -- _load_seed_transactions() returns [] in that
+# case, and CalculateCostBasis falls back to nothing beyond real transactions,
+# same as if this whole block didn't exist. Local dev only, by design.
+# DELETE THIS once every environment has been reseeded with the current
+# seed_dummy_data.sql, so cost basis always comes from the real transactions
+# table -- this exists purely as a bridge until then, not a design choice.
+_SeedTxn = namedtuple(
+    "_SeedTxn", ["ticker", "quantity", "price", "trans_date", "action_taken"]
+)
+
+_SEED_SQL_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "db", "seed_dummy_data.sql"
+)
+_SEED_ROW_PATTERN = re.compile(
+    r"\(\s*'([A-Za-z]+)'\s*,\s*(\d+)\s*,\s*([\d.]+)\s*,\s*'([\d\-: ]+)'\s*,\s*'(buy|sell)'\s*\)"
+)
+
+
+def _load_seed_transactions():
+    try:
+        with open(_SEED_SQL_PATH, "r") as f:
+            sql = f.read()
+    except OSError:
+        return []
+
+    # isolate just the "INSERT INTO transactions (...) VALUES (...), (...);"
+    # block, so this can't accidentally match rows from a different INSERT
+    # elsewhere in the file (e.g. holdings or portfolio_value)
+    match = re.search(
+        r"INSERT INTO transactions\s*\([^)]*\)\s*VALUES\s*(.*?);",
+        sql,
+        re.IGNORECASE | re.DOTALL,
+    )
+    if not match:
+        return []
+
+    seed_transactions = []
+    for row in _SEED_ROW_PATTERN.finditer(match.group(1)):
+        ticker, quantity, price, date_str, action = row.groups()
+        seed_transactions.append(
+            _SeedTxn(
+                ticker=ticker,
+                quantity=int(quantity),
+                price=float(price),
+                trans_date=datetime.strptime(date_str.strip(), "%Y-%m-%d %H:%M:%S"),
+                action_taken=action,
+            )
+        )
+
+    return seed_transactions
+
+
+# parsed once at import time rather than on every call to CalculateCostBasis
+_SEED_TRANSACTIONS = _load_seed_transactions()
+# ---------------------------------------------------------------------------
 
 
 class PortfolioManager:
@@ -116,50 +186,76 @@ class PortfolioManager:
         return self.calculate_holding_info(holdings_with_price)
 
     def get_biggest_gainer_and_loser(self) -> dict:
-        """Identifies holdings with the highest and lowest percentage moves today.
+        """Determines the top performing and worst performing holdings by unrealized gain.
 
-        Calculates moves based on the previous close price. Excludes cash and
-        unpriced positions.
+        Evaluates active non-cash positions against their computed average cost basis
+        to find the highest and lowest percentage returns since purchase. Holdings
+        lacking a computable cost basis or valid price are excluded and tracked
+        separately.
 
         Returns:
-            dict: Dictionary structured as:
-                {
-                    "biggest_gainer": dict | None,
-                    "biggest_loser": dict | None
-                }
+            dict: A dictionary containing performance analytics with the following keys:
+                - "biggest_gainer" (dict | None): The holding with the highest percentage gain.
+                - "biggest_loser" (dict | None): The holding with the lowest percentage gain.
+                - "qualifying_count" (int): Number of positions with a valid cost basis.
+                - "total_positions" (int): Total count of non-cash holdings evaluated.
+                - "excluded_symbols" (list[str]): Symbols excluded due to missing cost basis or price.
         """
         enriched_holdings = self._get_enriched_holdings()
+        cost_basis_by_ticker = self.calculate_cost_basis()
 
-        movers = [
-            holding
-            for holding in enriched_holdings
-            if isinstance(holding["change_pct_since_close"], (int, float))
-        ]
+        movers = []
+        excluded_symbols = []
+        total_positions = 0
+
+        for holding in enriched_holdings:
+            ticker = holding["symbol"]
+            if ticker == "--":  # the cash row -- not a position, don't count or list it
+                continue
+            total_positions += 1
+
+            curr_price = holding["curr_price"]
+            avg_cost = cost_basis_by_ticker.get(ticker)
+
+            if avg_cost is None or not isinstance(curr_price, (int, float)):
+                excluded_symbols.append(ticker)
+                continue
+
+            gain_pct = (curr_price - avg_cost) / avg_cost * 100 if avg_cost else 0
+            movers.append(
+                {
+                    "symbol": ticker,
+                    "name": holding["name"],
+                    "curr_price": curr_price,
+                    "avg_cost_basis": avg_cost,
+                    "gain_since_purchase": (curr_price - avg_cost)
+                    * holding["num_shares"],
+                    "gain_pct_since_purchase": gain_pct,
+                }
+            )
 
         if not movers:
-            return {"biggest_gainer": None, "biggest_loser": None}
-
-        def _summarize(holding):
             return {
-                "symbol": holding["symbol"],
-                "name": holding["name"],
-                "curr_price": holding["curr_price"],
-                "change_since_close": holding["change_since_close"],
-                "change_pct_since_close": holding["change_pct_since_close"],
+                "biggest_gainer": None,
+                "biggest_loser": None,
+                "qualifying_count": 0,
+                "total_positions": total_positions,
+                "excluded_symbols": excluded_symbols,
             }
 
         biggest_gainer = max(
-            movers,
-            key=lambda holding: holding["change_pct_since_close"],
+            movers, key=lambda holding: holding["gain_pct_since_purchase"]
         )
         biggest_loser = min(
-            movers,
-            key=lambda holding: holding["change_pct_since_close"],
+            movers, key=lambda holding: holding["gain_pct_since_purchase"]
         )
 
         return {
-            "biggest_gainer": _summarize(biggest_gainer),
-            "biggest_loser": _summarize(biggest_loser),
+            "biggest_gainer": biggest_gainer,
+            "biggest_loser": biggest_loser,
+            "qualifying_count": len(movers),
+            "total_positions": total_positions,
+            "excluded_symbols": excluded_symbols,
         }
 
     def _get_top_movers(self, count: int = 5) -> list[dict]:
@@ -191,6 +287,59 @@ class PortfolioManager:
             )
 
         return final_res
+
+    def calculate_cost_basis(self) -> dict[str, float]:
+        """Calculates the average cost basis per share for currently held securities.
+
+        Replays the full buy/sell transaction history in chronological order using
+        the average-cost method. If real transaction data is missing for a ticker,
+        it falls back to seed transaction records. Closed positions (net zero or
+        negative remaining shares) are omitted from the output.
+
+        Returns:
+            dict[str, float]: A mapping of ticker symbols to their calculated
+                average cost basis per share.
+        """
+        transactions = self.db_manager.get_transactions()
+
+        by_ticker = {}
+        for t in transactions:
+            by_ticker.setdefault(t.ticker, []).append(t)
+
+        # frozen *before* the fallback is added, so a multi-row seed ticker
+        # (e.g. NVDA has three rows) doesn't get cut short after its first
+        # fallback row makes it look like it "has data" to the checks below
+        tickers_with_real_data = set(by_ticker)
+
+        for seed_txn in _SEED_TRANSACTIONS:
+            if seed_txn.ticker not in tickers_with_real_data:
+                by_ticker.setdefault(seed_txn.ticker, []).append(seed_txn)
+
+        cost_basis = {}
+        for ticker, txns in by_ticker.items():
+            txns.sort(key=lambda t: t.trans_date)
+            running_shares = 0
+            running_cost = 0.0
+
+            for t in txns:
+                # price is a Decimal (comes from a Postgres DECIMAL column)
+                # for a real row, or a plain float for a fallback row; cast
+                # either way so it doesn't collide with running_cost's type
+                price = float(t.price)
+
+                if t.action_taken == "buy":
+                    running_shares += t.quantity
+                    running_cost += t.quantity * price
+                elif t.action_taken == "sell" and running_shares > 0:
+                    avg_cost = running_cost / running_shares
+                    sold = min(t.quantity, running_shares)
+                    running_cost -= avg_cost * sold
+                    running_shares -= sold
+
+            if running_shares > 0:
+                cost_basis[ticker] = running_cost / running_shares
+
+        return cost_basis
 
     def get_portfolio_history(
         self,
