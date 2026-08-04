@@ -65,7 +65,7 @@ def _check_market_open() -> bool:
 
     is_weekday = dt.weekday() < 5
 
-    start_time = dt_time(9, 0)
+    start_time = dt_time(9, 30)
     end_time = dt_time(16, 0)
     is_during_hours = start_time <= dt.time() <= end_time
 
