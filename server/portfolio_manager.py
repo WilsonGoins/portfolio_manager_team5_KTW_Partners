@@ -1,5 +1,6 @@
 import re
 import os
+from zoneinfo import ZoneInfo
 from collections import namedtuple
 from db_items import Holding, Transaction
 from db_manager import DBManager
@@ -69,7 +70,8 @@ def _load_seed_transactions():
                 ticker=ticker,
                 quantity=int(quantity),
                 price=float(price),
-                trans_date=datetime.strptime(date_str.strip(), "%Y-%m-%d %H:%M:%S"),
+                trans_date=datetime.strptime(
+                    date_str.strip(), "%Y-%m-%d %H:%M:%S"),
                 action_taken=action,
             )
         )
@@ -157,7 +159,8 @@ class PortfolioManager:
         enriched_holdings = self.calculate_holding_info(holdings_with_price)
         final_res["HoldingsTable"] = enriched_holdings
 
-        allocations = self.calculate_allocation_by_field(enriched_holdings, "h_type")
+        allocations = self.calculate_allocation_by_field(
+            enriched_holdings, "h_type")
         final_res["Allocations"] = allocations
         final_res["AllocationsBySector"] = self.calculate_allocation_by_field(
             enriched_holdings, "sector"
@@ -221,7 +224,8 @@ class PortfolioManager:
                 excluded_symbols.append(ticker)
                 continue
 
-            gain_pct = (curr_price - avg_cost) / avg_cost * 100 if avg_cost else 0
+            gain_pct = (curr_price - avg_cost) / \
+                avg_cost * 100 if avg_cost else 0
             movers.append(
                 {
                     "symbol": ticker,
@@ -380,7 +384,8 @@ class PortfolioManager:
             else:
                 history.append({"date": today_dt, "value": todays_value})
 
-        benchmark_closes = self.finance_manager.get_index_history(benchmark_ticker)
+        benchmark_closes = self.finance_manager.get_index_history(
+            benchmark_ticker)
         if benchmark_closes:
             benchmark_dates = sorted(benchmark_closes)
 
@@ -412,7 +417,8 @@ class PortfolioManager:
         """
         enrichedHoldings = self._get_enriched_holdings()
         summary = self.calculate_portfolio_summary(enrichedHoldings)
-        history = self.get_portfolio_history(todays_value=summary["total_value"])
+        history = self.get_portfolio_history(
+            todays_value=summary["total_value"])
 
         if len(history) < 2:
             return {"drawdown": None, "runup": None}
@@ -551,7 +557,8 @@ class PortfolioManager:
         )
 
         previous_value = total_value - day_change
-        day_change_pct = (day_change / previous_value * 100) if previous_value else 0
+        day_change_pct = (day_change / previous_value *
+                          100) if previous_value else 0
 
         return {
             "total_value": total_value,
@@ -741,7 +748,8 @@ class PortfolioManager:
 
         for holding in enriched:
             holding["allocation_pct"] = (
-                (holding["market_value"] / total_value * 100) if total_value else 0
+                (holding["market_value"] /
+                 total_value * 100) if total_value else 0
             )
 
         return enriched
@@ -854,7 +862,8 @@ class PortfolioManager:
 
         for row in rows:
             row["risk_share_pct"] = (
-                (row["contribution"] / portfolio_beta * 100) if portfolio_beta else 0
+                (row["contribution"] / portfolio_beta *
+                 100) if portfolio_beta else 0
             )
 
         rows.sort(key=lambda row: row["contribution"], reverse=True)
@@ -960,9 +969,11 @@ class PortfolioManager:
         enriched_holdings = self.calculate_holding_info(holdings_with_price)
 
         summary = self.calculate_portfolio_summary(enriched_holdings)
+        ny_tz = ZoneInfo("America/New_York")
         portfolio_value: float = summary["total_value"]
+
         self.db_manager.add_portfolio_value(
-            datetime.now(),
+            datetime.now(ny_tz),
             portfolio_value,
             summary["day_change"],
             summary["day_change_pct"],
