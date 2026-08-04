@@ -70,7 +70,8 @@ class _TTLCache:
             # still over: drop the oldest until we fit
             overflow = len(self._entries) - self._max_entries
             if overflow > 0:
-                oldest = sorted(self._entries, key=lambda k: self._entries[k][1])
+                oldest = sorted(
+                    self._entries, key=lambda k: self._entries[k][1])
                 for k in oldest[:overflow]:
                     del self._entries[k]
 
@@ -87,43 +88,43 @@ class FinanceManager:
         self._cache = _TTLCache(_QUOTE_TTL_SECONDS)
         self._history_cache = _TTLCache(_HISTORY_TTL_SECONDS)
 
-        def empty_cache(self) -> None:
-            """Clears all cached financial quotes.
+    def empty_cache(self) -> None:
+        """Clears all cached financial quotes.
 
-            Forces subsequent read requests to bypass local memory and fetch fresh data
-            directly from Yahoo Finance. Typically invoked during manual user refreshes
-            to guarantee up-to-date data.
-            """
-            self._cache.clear()
+        Forces subsequent read requests to bypass local memory and fetch fresh data
+        directly from Yahoo Finance. Typically invoked during manual user refreshes
+        to guarantee up-to-date data.
+        """
+        self._cache.clear()
 
-        def _format_large_number(self, val: float) -> str:
-            """Formats large numerical values into compact, human-readable financial strings.
+    def _format_large_number(self, val: float) -> str:
+        """Formats large numerical values into compact, human-readable financial strings.
 
-            Applies magnitude suffixes (K, M, B, T) and conditionally prefixes currency
-            symbols based on standard financial heuristics.
+        Applies magnitude suffixes (K, M, B, T) and conditionally prefixes currency
+        symbols based on standard financial heuristics.
 
-            Args:
-                val (float): The raw numeric value to format (e.g., market cap, volume).
+        Args:
+            val (float): The raw numeric value to format (e.g., market cap, volume).
 
-            Returns:
-                str: The abbreviated string representation (e.g., "$3.1T", "48.2M"),
-                    or "N/A" if the input value is zero or falsy.
-            """
-            if not val or val == 0:
-                return "N/A"
+        Returns:
+            str: The abbreviated string representation (e.g., "$3.1T", "48.2M"),
+                or "N/A" if the input value is zero or falsy.
+        """
+        if not val or val == 0:
+            return "N/A"
 
-            is_currency = val > 1000  # Simple heuristic for Market Cap vs Volume
+        is_currency = val > 1000  # Simple heuristic for Market Cap vs Volume
 
-            for unit, symbol in [
-                (1_000_000_000_000, "T"),
-                (1_000_000_000, "B"),
-                (1_000_000, "M"),
-                (1_000, "K"),
-            ]:
-                if abs(val) >= unit:
-                    formatted = f"{val / unit:.1f}{symbol}"
-                    return f"${formatted}" if is_currency else formatted
-            return f"${val:.2f}" if is_currency else f"{val:.0f}"
+        for unit, symbol in [
+            (1_000_000_000_000, "T"),
+            (1_000_000_000, "B"),
+            (1_000_000, "M"),
+            (1_000, "K"),
+        ]:
+            if abs(val) >= unit:
+                formatted = f"{val / unit:.1f}{symbol}"
+                return f"${formatted}" if is_currency else formatted
+        return f"${val:.2f}" if is_currency else f"{val:.0f}"
 
     def _extract_beta(self, info: dict) -> float | None:
         """Extracts the beta coefficient from a Yahoo Finance API payload.
@@ -446,7 +447,8 @@ class FinanceManager:
             info = stock.info
 
             current_price = (
-                info.get("currentPrice") or info.get("regularMarketPrice") or 0.0
+                info.get("currentPrice") or info.get(
+                    "regularMarketPrice") or 0.0
             )
             previous_close = info.get("previousClose") or current_price
 
@@ -459,7 +461,8 @@ class FinanceManager:
             pe_formatted = round(pe, 1) if pe is not None else "N/A"
 
             description = (
-                info.get("longBusinessSummary") or info.get("description") or None
+                info.get("longBusinessSummary") or info.get(
+                    "description") or None
             )
 
             details = {
@@ -574,13 +577,15 @@ class FinanceManager:
             try:
                 stories = yf.Ticker(ticker).news or []
             except Exception as e:
-                self.logger.warning(f"Failed to fetch news for '{ticker}': {e}")
+                self.logger.warning(
+                    f"Failed to fetch news for '{ticker}': {e}")
                 continue
 
             for news_item in stories:
                 content = news_item.get("content", news_item)
                 title = content.get("title")
-                link = content.get("canonicalUrl", {}).get("url") or content.get("link")
+                link = content.get("canonicalUrl", {}).get(
+                    "url") or content.get("link")
 
                 if not (title and link):  # if nothing to show, go to next story
                     continue
@@ -593,7 +598,8 @@ class FinanceManager:
                 ) or content.get("publisher", "Yahoo Finance")
 
                 image_url = None
-                thumbnail_data = content.get("thumbnail") or news_item.get("thumbnail")
+                thumbnail_data = content.get(
+                    "thumbnail") or news_item.get("thumbnail")
 
                 if isinstance(thumbnail_data, dict):
                     resolutions = thumbnail_data.get("resolutions", [])
