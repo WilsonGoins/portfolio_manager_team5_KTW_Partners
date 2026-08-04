@@ -8,12 +8,6 @@
   color: #a0aec0;
 }
 
-.movers-single-message {
-  margin: 0 0 12px;
-  font-size: 0.8125rem;
-  color: #718096;
-}
-
 .movers-list {
   display: flex;
   flex-direction: column;

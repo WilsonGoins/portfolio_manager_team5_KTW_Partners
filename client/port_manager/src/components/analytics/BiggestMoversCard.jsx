@@ -73,14 +73,9 @@ export function BiggestMoversCard({ data }) {
             : 'No movers available right now.'}
         </p>
       ) : onlyOneQualifies ? (
-        <>
-          <p className="movers-single-message">
-            Only {biggestGainer.symbol} has enough purchase history to calculate gain/loss right now.
-          </p>
-          <div className="movers-list">
-            <MoverRow type={biggestGainer.gain_pct_since_purchase >= 0 ? 'gainer' : 'loser'} mover={biggestGainer} />
-          </div>
-        </>
+        <div className="movers-list">
+          <MoverRow type={biggestGainer.gain_pct_since_purchase >= 0 ? 'gainer' : 'loser'} mover={biggestGainer} />
+        </div>
       ) : (
         <div className="movers-list">
           <MoverRow type="gainer" mover={biggestGainer} />
