@@ -1,12 +1,12 @@
-from finance_manager import FinanceManager
-from db_manager import DBManager
-from datetime import datetime, timezone
-from db_items import Holding, Transaction
-from collections import namedtuple
-import bisect
-import os
 import re
-
+import os
+from collections import namedtuple
+from db_items import Holding, Transaction
+from db_manager import DBManager
+from finance_manager import FinanceManager
+from typing import List, Optional
+from datetime import datetime, timezone
+import bisect
 
 _CONSERVATIVE_BETA_CEILING = 0.8
 _MARKET_BETA_CEILING = 1.2
@@ -32,10 +32,12 @@ _RISK_HIGHLIGHT_MIN_GAP_PCT = 3.0
 # seed_dummy_data.sql, so cost basis always comes from the real transactions
 # table -- this exists purely as a bridge until then, not a design choice.
 _SeedTxn = namedtuple(
-    "_SeedTxn", ["ticker", "quantity", "price", "trans_date", "action_taken"])
+    "_SeedTxn", ["ticker", "quantity", "price", "trans_date", "action_taken"]
+)
 
-_SEED_SQL_PATH = os.path.join(os.path.dirname(
-    __file__), "..", "db", "seed_dummy_data.sql")
+_SEED_SQL_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "db", "seed_dummy_data.sql"
+)
 _SEED_ROW_PATTERN = re.compile(
     r"\(\s*'([A-Za-z]+)'\s*,\s*(\d+)\s*,\s*([\d.]+)\s*,\s*'([\d\-: ]+)'\s*,\s*'(buy|sell)'\s*\)"
 )
@@ -53,21 +55,24 @@ def _load_seed_transactions():
     # elsewhere in the file (e.g. holdings or portfolio_value)
     match = re.search(
         r"INSERT INTO transactions\s*\([^)]*\)\s*VALUES\s*(.*?);",
-        sql, re.IGNORECASE | re.DOTALL)
+        sql,
+        re.IGNORECASE | re.DOTALL,
+    )
     if not match:
         return []
 
     seed_transactions = []
     for row in _SEED_ROW_PATTERN.finditer(match.group(1)):
         ticker, quantity, price, date_str, action = row.groups()
-        seed_transactions.append(_SeedTxn(
-            ticker=ticker,
-            quantity=int(quantity),
-            price=float(price),
-            trans_date=datetime.strptime(
-                date_str.strip(), "%Y-%m-%d %H:%M:%S"),
-            action_taken=action,
-        ))
+        seed_transactions.append(
+            _SeedTxn(
+                ticker=ticker,
+                quantity=int(quantity),
+                price=float(price),
+                trans_date=datetime.strptime(date_str.strip(), "%Y-%m-%d %H:%M:%S"),
+                action_taken=action,
+            )
+        )
 
     return seed_transactions
 
@@ -78,153 +83,156 @@ _SEED_TRANSACTIONS = _load_seed_transactions()
 
 
 class PortfolioManager:
-    """This class is responsible for handling all portfolio related queries. It delegates to DBManager and FinanceManager as needed"""
+    """Handles all portfolio-related queries and calculations.
+
+    Delegates database access and market data lookups to DBManager and
+    FinanceManager respectively.
+    """
 
     def __init__(self, db_manager: DBManager, finance_manager: FinanceManager):
+        """Inits PortfolioManager with required data managers.
+
+        Args:
+            db_manager: Instance handling database queries and updates.
+            finance_manager: Instance handling financial quote lookups.
+        """
         self.db_manager = db_manager
         self.finance_manager = finance_manager
 
-    # Retrieves all data needed for overview page
-    # Returns in a dict of form
-        # {HoldingsTable: [{symbol: AAPL, ..., market_value: ..., change_since_close: ..., allocation_pct: 12.5}, {symbol: NVDA, ...}],
-        #  Allocations: [{label: ETF, market_value: 46559.62, allocation_pct: 36.0}, {label: Cash, ...}],
-        #  AllocationsBySector: [{label: Technology, market_value: 46559.62, allocation_pct: 36.0}, ...],
-        #  PortfolioSummary: {total_value: ..., day_change: ..., day_change_pct: ...},
-        #  PortfolioHistory: [{date: "2026-07-27", value: ...}, ...],
-        #  TopMovers: [{symbol: ..., name: ..., price: ..., change: ...}, ...],
-        #  LastUpdated: "2026-07-30T10:20:00-04:00"
-        # }
+    def _get_holdings_with_price(self) -> list[dict]:
+        """Fetches database holdings and enriches them with batch market quotes.
 
-    def _get_holdings_with_price(self) -> dict:
-        dbHoldingsRes = self.db_manager.get_holdings()
+        Returns:
+            list[dict]: A list of holdings containing price and sector details.
 
-        # one batched lookup rather than a call per holding inside the loop below:
-        # those calls used to run back to back, so the page waited on the sum of
-        # every round trip. Batched, they overlap and cost about one round trip total.
+        Raises:
+            ValueError: If a holding ticker cannot be found or validated.
+        """
+        db_holding_res = self.db_manager.get_holdings()
+
         quotes = self.finance_manager.get_stocks_by_tickers(
-            [holding.ticker for holding in dbHoldingsRes])
+            [holding.ticker for holding in db_holding_res]
+        )
 
-        holdingsWithPrice = []
-        for holding in dbHoldingsRes:      # this will iterate through the list we got and add current price for each of them
-            yahooRes = quotes.get(holding.ticker)
-            if (yahooRes is None):
+        holdings_with_price = []
+        for holding in db_holding_res:
+            yahoo_res = quotes.get(holding.ticker)
+            if yahoo_res is None:
                 raise ValueError("Holding must be a valid security.")
-            holdingsWithPrice.append({"symbol": holding.ticker, "name": holding.name, "h_type": holding.h_type,
-                                      "num_shares": holding.quantity_shares, "curr_price": yahooRes["current_price"],
-                                      "previous_close": yahooRes["previous_close"], "sector": yahooRes.get("sector") or "Other"})
+            holdings_with_price.append(
+                {
+                    "symbol": holding.ticker,
+                    "name": holding.name,
+                    "h_type": holding.h_type,
+                    "num_shares": holding.quantity_shares,
+                    "curr_price": yahoo_res["current_price"],
+                    "previous_close": yahoo_res["previous_close"],
+                    "sector": yahoo_res.get("sector") or "Other",
+                }
+            )
 
-        return holdingsWithPrice
+        return holdings_with_price
 
-    def GetOverviewData(self):
-        finalRes = {}
+    def empty_caches(self) -> None:
+        """Flushes memory caches across finance and database managers."""
+        self.finance_manager.empty_cache()
+        self.db_manager.empty_cache()
 
-        holdingsWithPrice = self._get_holdings_with_price()
-        enrichedHoldings = self.CalculateHoldingInfo(holdingsWithPrice)
-        finalRes["HoldingsTable"] = enrichedHoldings
+    def get_overview_data(self) -> dict:
+        """Retrieves and packages all data required for the Overview dashboard.
 
-        # now get the allocations for the allocations graph.
-        # two breakdowns of the same enriched holdings, so the Overview page's
-        # toggle can switch views without an extra round trip.
-        allocations = self.CalculateAllocationByField(
-            enrichedHoldings, "h_type")       # cash is passed in as a holding here
-        finalRes["Allocations"] = allocations
-        finalRes["AllocationsBySector"] = self.CalculateAllocationByField(
-            enrichedHoldings, "sector")
+        Returns:
+            dict: Comprehensive dataset containing:
+                - HoldingsTable: List of enriched holdings.
+                - Allocations: Asset breakdown by category.
+                - AllocationsBySector: Asset breakdown by industry sector.
+                - PortfolioSummary: Total value and daily movement metrics.
+                - PortfolioHistory: Value history snapshots.
+                - TopMovers: Watchlist market movers.
+                - LastUpdated: ISO timestamp of when the quotes were pulled.
+        """
+        final_res = {}
 
-        # headline numbers for the portfolio value card
-        summary = self.CalculatePortfolioSummary(enrichedHoldings)
-        finalRes["PortfolioSummary"] = summary
+        holdings_with_price = self._get_holdings_with_price()
+        enriched_holdings = self.calculate_holding_info(holdings_with_price)
+        final_res["HoldingsTable"] = enriched_holdings
 
-        # the value chart's series: stored snapshots, capped with today's live
-        # total so the line stays current between snapshot writes
-        finalRes["PortfolioHistory"] = self.GetPortfolioHistory(
-            todaysValue=summary["total_value"])
+        allocations = self.calculate_allocation_by_field(enriched_holdings, "h_type")
+        final_res["Allocations"] = allocations
+        final_res["AllocationsBySector"] = self.calculate_allocation_by_field(
+            enriched_holdings, "sector"
+        )
 
-        # the watchlist's rows
-        finalRes["TopMovers"] = self.GetTopMovers()
+        summary = self.db_manager.get_portfolio_values()[0].to_dict()
+        final_res["PortfolioSummary"] = summary
 
-        # when the yahoo finance quotes above were pulled, so the UI can show how
-        # stale the prices are. stamped last, once every quote is in hand.
-        finalRes["LastUpdated"] = datetime.now().astimezone().isoformat()
+        final_res["PortfolioHistory"] = self.get_portfolio_history(
+            todays_value=summary["total_value"]
+        )
 
-        return finalRes
+        final_res["TopMovers"] = self._get_top_movers()
 
-    # Fetches this user's holdings and their current Yahoo quotes, and returns
-    # the enriched list CalculateHoldingInfo builds from them (cash included
-    # as its own row). Factored out of GetOverviewData so any other feature
-    # that needs the current per-holding numbers -- e.g. the Analytics page's
-    # biggest gainer/loser -- shares this one round trip to Yahoo instead of
-    # repeating it.
-    def _GetEnrichedHoldings(self):
-        # this is a list of Holding objects, each with {ticker, name, h_type, quantity_shares, ...}
-        dbHoldingsRes = self.db_manager.get_holdings()
+        final_res["LastUpdated"] = datetime.now().astimezone().isoformat()
 
-        # one batched lookup rather than a call per holding inside the loop below:
-        # those calls used to run back to back, so the page waited on the sum of
-        # every round trip. Batched, they overlap and cost about one round trip total.
-        quotes = self.finance_manager.get_stocks_by_tickers(
-            [holding.ticker for holding in dbHoldingsRes])
+        return final_res
 
-        holdingsWithPrice = []
-        for holding in dbHoldingsRes:      # this will iterate through the list we got and add current price for each of them
-            yahooRes = quotes.get(holding.ticker)
-            if (yahooRes is None):
-                raise ValueError("Holding must be a valid security.")
-            holdingsWithPrice.append({"symbol": holding.ticker, "name": holding.name, "h_type": holding.h_type,
-                                      "num_shares": holding.quantity_shares, "curr_price": yahooRes["current_price"],
-                                      "previous_close": yahooRes["previous_close"], "sector": yahooRes.get("sector") or "Other"})
+    def _get_enriched_holdings(self) -> list[dict]:
+        """Fetches current holdings and builds enriched details including cash.
 
-        # now clean up the data to have all the necessary information (cash is folded in as its own holding)
-        return self.CalculateHoldingInfo(holdingsWithPrice)
+        Returns:
+            list[dict]: Enriched holdings calculated with current price quotes.
+        """
+        holdings_with_price = self._get_holdings_with_price()
+        return self.calculate_holding_info(holdings_with_price)
 
-    # Analytics page: which current holding has gained the most, and which
-    # has lost the most, relative to what the user actually paid for it --
-    # not today's market move. A stock bought today because it was already
-    # down doesn't show up as a "loser" just for being purchased at a low
-    # price; it only shows up once its price falls *below what was paid*.
-    # Cash and any holding without a computable cost basis (see
-    # CalculateCostBasis) are excluded from the running, and listed in
-    # excluded_symbols instead of just silently vanishing -- same idea as
-    # RiskCard's "not rated by Yahoo" footnote, for the same reason: a holding
-    # can't be evaluated for this specific metric, not that Biggest Movers is
-    # broken. Returns {"biggest_gainer": {...} or None, "biggest_loser": {...}
-    # or None, "qualifying_count", "total_positions", "excluded_symbols"} --
-    # both cards None if no holding qualifies at all. If exactly one holding
-    # qualifies, it's correctly both entries -- it's the only one with a gain
-    # or loss to speak of, which the frontend should say plainly rather than
-    # showing what looks like two duplicate cards.
+    def get_biggest_gainer_and_loser(self) -> dict:
+        """Determines the top performing and worst performing holdings by unrealized gain.
 
-    def GetBiggestGainerAndLoser(self):
-        enrichedHoldings = self._GetEnrichedHoldings()
-        costBasisByTicker = self.CalculateCostBasis()
+        Evaluates active non-cash positions against their computed average cost basis
+        to find the highest and lowest percentage returns since purchase. Holdings
+        lacking a computable cost basis or valid price are excluded and tracked
+        separately.
+
+        Returns:
+            dict: A dictionary containing performance analytics with the following keys:
+                - "biggest_gainer" (dict | None): The holding with the highest percentage gain.
+                - "biggest_loser" (dict | None): The holding with the lowest percentage gain.
+                - "qualifying_count" (int): Number of positions with a valid cost basis.
+                - "total_positions" (int): Total count of non-cash holdings evaluated.
+                - "excluded_symbols" (list[str]): Symbols excluded due to missing cost basis or price.
+        """
+        enriched_holdings = self._get_enriched_holdings()
+        cost_basis_by_ticker = self.calculate_cost_basis()
 
         movers = []
         excluded_symbols = []
         total_positions = 0
 
-        for holding in enrichedHoldings:
+        for holding in enriched_holdings:
             ticker = holding["symbol"]
             if ticker == "--":  # the cash row -- not a position, don't count or list it
                 continue
             total_positions += 1
 
             curr_price = holding["curr_price"]
-            avg_cost = costBasisByTicker.get(ticker)
+            avg_cost = cost_basis_by_ticker.get(ticker)
 
             if avg_cost is None or not isinstance(curr_price, (int, float)):
                 excluded_symbols.append(ticker)
                 continue
 
-            gain_pct = (curr_price - avg_cost) / avg_cost * \
-                100 if avg_cost else 0
-            movers.append({
-                "symbol": ticker,
-                "name": holding["name"],
-                "curr_price": curr_price,
-                "avg_cost_basis": avg_cost,
-                "gain_since_purchase": (curr_price - avg_cost) * holding["num_shares"],
-                "gain_pct_since_purchase": gain_pct,
-            })
+            gain_pct = (curr_price - avg_cost) / avg_cost * 100 if avg_cost else 0
+            movers.append(
+                {
+                    "symbol": ticker,
+                    "name": holding["name"],
+                    "curr_price": curr_price,
+                    "avg_cost_basis": avg_cost,
+                    "gain_since_purchase": (curr_price - avg_cost)
+                    * holding["num_shares"],
+                    "gain_pct_since_purchase": gain_pct,
+                }
+            )
 
         if not movers:
             return {
@@ -236,9 +244,11 @@ class PortfolioManager:
             }
 
         biggest_gainer = max(
-            movers, key=lambda holding: holding["gain_pct_since_purchase"])
+            movers, key=lambda holding: holding["gain_pct_since_purchase"]
+        )
         biggest_loser = min(
-            movers, key=lambda holding: holding["gain_pct_since_purchase"])
+            movers, key=lambda holding: holding["gain_pct_since_purchase"]
+        )
 
         return {
             "biggest_gainer": biggest_gainer,
@@ -248,29 +258,48 @@ class PortfolioManager:
             "excluded_symbols": excluded_symbols,
         }
 
-    # Average cost basis per share for every ticker currently held, computed
-    # by replaying the full buy/sell transaction history in order (oldest
-    # first) using the average-cost method: a buy raises the running share
-    # count and running cost together; a sell removes shares at the
-    # position's *current* average cost (realizing whatever gain or loss on
-    # just those shares) without changing the average cost of what's left --
-    # only a later buy moves the average again. This is the same method
-    # brokerages use for "average cost" unrealized gain/loss, as opposed to
-    # FIFO/LIFO lot tracking, which this app doesn't otherwise track lots for.
-    #
-    # A ticker with no real transaction rows falls back to _SEED_TRANSACTIONS
-    # (parsed from db/seed_dummy_data.sql -- see the comment above that
-    # constant; this is a bridge for databases that haven't been reseeded
-    # with the reconciled seed file, not a permanent data source, and real
-    # rows always win over it).
-    #
-    # Returns {ticker: avg_cost_per_share}. A ticker whose transaction history
-    # (real or fallback) nets out to zero (or negative, which shouldn't
-    # happen but would signal a data problem) shares held is left out rather
-    # than returning a nonsensical basis -- this can also happen for a ticker
-    # that's fully sold off but still has old transaction rows on record.
+    def _get_top_movers(self, count: int = 5) -> list[dict]:
+        """Fetches top market movers for the user's watchlist.
 
-    def CalculateCostBasis(self):
+        Args:
+            count: Number of movers to retrieve. Defaults to 5.
+
+        Returns:
+            list[dict]: Reshaped market quotes containing symbol, name, price,
+            and percent change. Skips invalid or unpriceable quotes.
+        """
+        final_res = []
+
+        for mover in self.finance_manager.get_top_movers(count):
+            price = mover["curr_price"]
+            previous_close = mover["previous_close"]
+
+            if price is None or not previous_close:
+                continue
+
+            final_res.append(
+                {
+                    "symbol": mover["symbol"],
+                    "name": mover["name"],
+                    "price": price,
+                    "change": (price - previous_close) / previous_close * 100,
+                }
+            )
+
+        return final_res
+
+    def calculate_cost_basis(self) -> dict[str, float]:
+        """Calculates the average cost basis per share for currently held securities.
+
+        Replays the full buy/sell transaction history in chronological order using
+        the average-cost method. If real transaction data is missing for a ticker,
+        it falls back to seed transaction records. Closed positions (net zero or
+        negative remaining shares) are omitted from the output.
+
+        Returns:
+            dict[str, float]: A mapping of ticker symbols to their calculated
+                average cost basis per share.
+        """
         transactions = self.db_manager.get_transactions()
 
         by_ticker = {}
@@ -312,78 +341,50 @@ class PortfolioManager:
 
         return cost_basis
 
+    def get_portfolio_history(
+        self,
+        todays_value: Optional[float] = None,
+        benchmark_ticker: str = "^GSPC",
+    ) -> list[dict]:
+        """Retrieves historical portfolio snapshots alongside benchmark index values.
 
-    # Today's biggest market movers for the watchlist. Reshapes the finance
-    # manager's quotes into [{"symbol", "name", "price", "change"}], where
-    # change is the percent move since the previous close.
+        Normalizes raw historical data chronologically and appends or updates
+        today's live portfolio value if provided. Matches benchmark closing levels
+        to each snapshot date.
 
-    def GetTopMovers(self, count: int = 5):
-        finalRes = []
+        Args:
+            todays_value: Current live portfolio value.
+            benchmark_ticker: Benchmark ticker to compare against. Defaults to "^GSPC".
 
-        for mover in self.finance_manager.get_top_movers(count):
-            price = mover["curr_price"]
-            previousClose = mover["previous_close"]
-
-            # skip any quote we can't compute a move from rather than
-            # sending the frontend a null it has to defend against
-            if price is None or not previousClose:
-                continue
-
-            finalRes.append({
-                "symbol": mover["symbol"],
-                "name": mover["name"],
-                "price": price,
-                "change": (price - previousClose) / previousClose * 100,
-            })
-
-        return finalRes
-
-    # Returns the stored portfolio value snapshots oldest first, as
-    # [{"date": "YYYY-MM-DD", "value": float, "benchmark_value": float | None}].
-    # When todaysValue is given it is appended as (or overwrites) today's
-    # point, so the series ends at the portfolio's live value rather than at
-    # the last snapshot that was written.
-    #
-    # benchmark_value is the S&P 500's raw close for that date (default
-    # "^GSPC"), matched to its most recent close on or before the portfolio's
-    # date -- so a snapshot that doesn't land on a trading day (weekend,
-    # holiday) still gets a value instead of a gap. It's left as a raw index
-    # level, not a % return: the Overview chart's timeframe toggle re-slices
-    # this same array for 1D/1W/1M/YTD/1Y, and each view needs to normalize
-    # both lines to 0% at *its own* first visible point, not one fixed
-    # anchor -- so that normalization has to happen client-side, once the
-    # slice is known, not here. benchmark_value comes back None for any date
-    # the benchmark has no close for at all (e.g. before its 1-year window
-    # starts), which the frontend should skip rather than treat as zero.
-
-    def GetPortfolioHistory(self, todaysValue: float = None, benchmark_ticker: str = "^GSPC"):
-        dbRes = self.db_manager.get_portfolio_values()
+        Returns:
+            list[dict]: Chronological list of snapshots formatted as:
+                [{"date": str, "value": float, "benchmark_value": float | None}]
+        """
+        db_res = self.db_manager.get_portfolio_values()
 
         history = []
-        for pv in sorted(dbRes, key=lambda pv: pv.p_date):
+        for pv in sorted(db_res, key=lambda pv: pv.p_date):
             dt_str = pv.p_date.isoformat()
-            history.append({
-                "date": dt_str,
-                "value": float(pv.value),
-            })
+            history.append(
+                {
+                    "date": dt_str,
+                    "value": float(pv.value),
+                }
+            )
 
-        # Update or append today's live value
-        if todaysValue is not None:
+        if todays_value is not None:
             today_dt = datetime.now(timezone.utc).isoformat()
             if history and history[-1]["date"][:10] == today_dt[:10]:
-                history[-1]["value"] = todaysValue
+                history[-1]["value"] = todays_value
                 history[-1]["date"] = today_dt
             else:
-                history.append({"date": today_dt, "value": todaysValue})
+                history.append({"date": today_dt, "value": todays_value})
 
-        # Match benchmark data (if available)
-        benchmark_closes = self.finance_manager.get_index_history(
-            benchmark_ticker)
+        benchmark_closes = self.finance_manager.get_index_history(benchmark_ticker)
         if benchmark_closes:
             benchmark_dates = sorted(benchmark_closes)
 
             def _closest_close(iso_date_str):
-                # Extract YYYY-MM-DD from the point's full ISO string
                 ymd = iso_date_str[:10]
                 i = bisect.bisect_right(benchmark_dates, ymd)
                 return benchmark_closes[benchmark_dates[i - 1]] if i > 0 else None
@@ -396,41 +397,36 @@ class PortfolioManager:
 
         return history
 
-    # Analytics page: the portfolio's single worst decline (max drawdown) and
-    # single best run (max run-up), found in one pass over its value history
-    # -- run-up is drawdown's mirror image, a rising running low instead of a
-    # falling running high. Uses today's live value as the series' last point
-    # (via GetPortfolioHistory's todaysValue), so "since peak" reflects the
-    # portfolio right now, not just the last stored snapshot.
-    # Returns {"drawdown": {...} | None, "runup": {...} | None} -- None for
-    # either with fewer than 2 history points to compare.
-    #
-    # drawdown: {"pct" (negative), "peak_value", "peak_date", "trough_value",
-    #   "trough_date", "decline_days", "recovered_date" (or None if the
-    #   portfolio hasn't closed back above that peak since), "recovery_days"
-    #   (or None to match)}
-    # runup: {"pct" (positive), "trough_value", "trough_date", "peak_value",
-    #   "peak_date", "incline_days", "since_peak_pct" (<=0, or exactly 0 if
-    #   that peak is today's value), "at_new_high" (True iff since_peak_pct
-    #   is 0 -- the portfolio has never given back any of that run)}
+    def get_drawdown_and_runup(self) -> dict:
+        """Calculates the maximum drawdown and run-up metrics across historical values.
 
-    def GetDrawdownAndRunup(self):
-        enrichedHoldings = self._GetEnrichedHoldings()
-        summary = self.CalculatePortfolioSummary(enrichedHoldings)
-        history = self.GetPortfolioHistory(todaysValue=summary["total_value"])
+        Evaluates historical data including the live total value to track peak-to-trough
+        declines and trough-to-peak gains.
+
+        Returns:
+            dict: Structured drawdown and run-up details:
+                {
+                    "drawdown": dict | None,
+                    "runup": dict | None
+                }
+        """
+        enrichedHoldings = self._get_enriched_holdings()
+        summary = self.calculate_portfolio_summary(enrichedHoldings)
+        history = self.get_portfolio_history(todays_value=summary["total_value"])
 
         if len(history) < 2:
             return {"drawdown": None, "runup": None}
 
-        def _parse(date_str):   # dates sometimes have timestamps that we need to drop for this component
+        def _parse(date_str):
             return datetime.fromisoformat(date_str).date()
 
-        def _day(date_str):     # the plain YYYY-MM-DD the cards below expect
+        def _day(date_str):
             return _parse(date_str).isoformat() if date_str else None
 
-        # drawdown: track the running peak; the worst decline from it is the
-        # biggest (most negative) % any later point falls below that peak.
-        peak_value, peak_date = history[0]["value"], history[0]["date"]
+        peak_value, peak_date = (
+            history[0]["value"],
+            history[0]["date"],
+        )
         max_dd_pct = 0
         dd_peak_value = dd_peak_date = dd_trough_value = dd_trough_date = None
 
@@ -438,21 +434,38 @@ class PortfolioManager:
             if point["value"] > peak_value:
                 peak_value, peak_date = point["value"], point["date"]
             else:
-                pct = (point["value"] - peak_value) / \
-                    peak_value * 100 if peak_value else 0
+                pct = (
+                    (point["value"] - peak_value) / peak_value * 100
+                    if peak_value
+                    else 0
+                )
                 if pct < max_dd_pct:
                     max_dd_pct = pct
-                    dd_peak_value, dd_peak_date = peak_value, peak_date
-                    dd_trough_value, dd_trough_date = point["value"], point["date"]
+                    dd_peak_value, dd_peak_date = (
+                        peak_value,
+                        peak_date,
+                    )
+                    dd_trough_value, dd_trough_date = (
+                        point["value"],
+                        point["date"],
+                    )
 
         drawdown = None
         if dd_trough_date is not None:
             recovered_date = next(
-                (point["date"] for point in history
-                 if point["date"] > dd_trough_date and point["value"] >= dd_peak_value),
-                None)
-            recovery_days = ((_parse(recovered_date) - _parse(dd_trough_date)).days
-                             if recovered_date else None)
+                (
+                    point["date"]
+                    for point in history
+                    if point["date"] > dd_trough_date
+                    and point["value"] >= dd_peak_value
+                ),
+                None,
+            )
+            recovery_days = (
+                (_parse(recovered_date) - _parse(dd_trough_date)).days
+                if recovered_date
+                else None
+            )
 
             drawdown = {
                 "pct": max_dd_pct,
@@ -465,28 +478,44 @@ class PortfolioManager:
                 "recovery_days": recovery_days,
             }
 
-        # run-up: the mirror image -- track the running trough (lowest point
-        # so far) instead of the running peak, and the best gain from it.
-        trough_value, trough_date = history[0]["value"], history[0]["date"]
+        trough_value, trough_date = (
+            history[0]["value"],
+            history[0]["date"],
+        )
         max_ru_pct = 0
         ru_trough_value = ru_trough_date = ru_peak_value = ru_peak_date = None
 
         for point in history:
             if point["value"] < trough_value:
-                trough_value, trough_date = point["value"], point["date"]
+                trough_value, trough_date = (
+                    point["value"],
+                    point["date"],
+                )
             else:
-                pct = (point["value"] - trough_value) / \
-                    trough_value * 100 if trough_value else 0
+                pct = (
+                    (point["value"] - trough_value) / trough_value * 100
+                    if trough_value
+                    else 0
+                )
                 if pct > max_ru_pct:
                     max_ru_pct = pct
-                    ru_trough_value, ru_trough_date = trough_value, trough_date
-                    ru_peak_value, ru_peak_date = point["value"], point["date"]
+                    ru_trough_value, ru_trough_date = (
+                        trough_value,
+                        trough_date,
+                    )
+                    ru_peak_value, ru_peak_date = (
+                        point["value"],
+                        point["date"],
+                    )
 
         runup = None
         if ru_peak_date is not None:
             latest_value = history[-1]["value"]
-            since_peak_pct = ((latest_value - ru_peak_value) /
-                              ru_peak_value * 100 if ru_peak_value else 0)
+            since_peak_pct = (
+                (latest_value - ru_peak_value) / ru_peak_value * 100
+                if ru_peak_value
+                else 0
+            )
 
             runup = {
                 "pct": max_ru_pct,
@@ -500,19 +529,29 @@ class PortfolioManager:
             }
 
         return {"drawdown": drawdown, "runup": runup}
-    # for the portfolio value card: what the portfolio is worth right now, and
-    # how much of that is today's movement in dollars and percent.
 
-    def CalculatePortfolioSummary(self, holdings):
+    def calculate_portfolio_summary(self, holdings: List[dict]) -> dict:
+        """Calculates current total value and day change metrics across holdings.
+
+        Args:
+            holdings: List of enriched holding records.
+
+        Returns:
+            dict: Summary metrics containing:
+                - total_value: Total portfolio market value including cash.
+                - day_change: Dollar movement since previous close.
+                - day_change_pct: Percentage movement since previous close.
+        """
         total_value = sum(holding["market_value"] for holding in holdings)
 
-        # cash carries "--" for change_since_close, so only total the real numbers
-        day_change = sum(holding["change_since_close"] for holding in holdings
-                         if isinstance(holding["change_since_close"], (int, float)))
+        day_change = sum(
+            holding["change_since_close"]
+            for holding in holdings
+            if isinstance(holding["change_since_close"], (int, float))
+        )
 
         previous_value = total_value - day_change
-        day_change_pct = (day_change / previous_value *
-                          100) if previous_value else 0
+        day_change_pct = (day_change / previous_value * 100) if previous_value else 0
 
         return {
             "total_value": total_value,
@@ -520,58 +559,85 @@ class PortfolioManager:
             "day_change_pct": day_change_pct,
         }
 
-    # Retrieves all transactions from database
-    # returns a list of transaction dicts with the date, ticker, quantity,
-    # price, and action taken for each transaction
+    def get_transactions(self) -> list[dict]:
+        """Retrieves transaction history ledger from the database.
 
-    def GetTransactions(self):
-        finalRes = []
+        Returns:
+            list[dict]: Historical record list with transaction details.
+        """
+        final_res = []
         dbTransRes = self.db_manager.get_transactions()
         for trans in dbTransRes:
-            finalRes.append({
-                "date": trans.trans_date,
-                "ticker": trans.ticker,
-                "quantity": trans.quantity,
-                "price": trans.price,
-                "action": trans.action_taken
-            })
-        return finalRes
+            final_res.append(
+                {
+                    "date": trans.trans_date,
+                    "ticker": trans.ticker,
+                    "quantity": trans.quantity,
+                    "price": trans.price,
+                    "action": trans.action_taken,
+                }
+            )
+        return final_res
 
-    # Buy shares of a security. Deducts the cost from cash, updates the holding, and records the transaction.
+    def buy(self, ticker: str, quantity: int, price: float) -> None:
+        """Executes a buy order for a security.
 
-    def Buy(self, ticker: str, quantity: int, price: float):
+        Deducts the total purchase cost from cash, creates or updates the holding,
+        and logs the action in the transaction history.
+
+        Args:
+            ticker: Security ticker symbol.
+            quantity: Number of shares to purchase. Must be positive.
+            price: Cost per share.
+
+        Raises:
+            ValueError: If quantity is non-positive, cash is insufficient, or security is invalid.
+        """
         if quantity <= 0:
             raise ValueError("quantity must be a positive number of shares")
 
         total_cost = quantity * price
-        cash = self.GetCashAmount()
+        cash = self.get_cash_amount()
         if total_cost > cash:
             raise ValueError("insufficient cash to complete this purchase")
 
-        # add to the existing position, or open a new one if we don't hold it yet
-        existing = self.db_manager.get_holding(
-            ticker)      # get holding if it exists
+        existing = self.db_manager.get_holding(ticker)
         if existing is None:
             yahooData = self.finance_manager.get_stock_by_ticker(ticker)
-            if (yahooData is None):
+            if yahooData is None:
                 raise ValueError("Holding must be a valid security.")
             self.db_manager.add_holding(
-                Holding(ticker, yahooData["name"], yahooData["stock_type"], quantity))
+                Holding(
+                    ticker,
+                    yahooData["name"],
+                    yahooData["stock_type"],
+                    quantity,
+                )
+            )
         else:
             existing.quantity_shares += quantity
             self.db_manager.update_holding(existing)
 
-        # set cash to new amount after purchase
         self.db_manager.set_cash((cash - total_cost))
 
-        # record the buy in the transactions ledger
-        self.db_manager.add_transaction(Transaction(
-            None, ticker, quantity, price, datetime.now(), "buy"))
+        self.db_manager.add_transaction(
+            Transaction(None, ticker, quantity, price, datetime.now(), "buy")
+        )
 
-    # Sell shares of a security.
-    # Adds the proceeds to cash, reduces (or closes) the holding, and records the transaction.
+    def sell(self, ticker: str, quantity: int, price: float) -> None:
+        """Executes a sell order for a security position.
 
-    def Sell(self, ticker: str, quantity: int, price: float):
+        Adds sale proceeds to cash, decreases or removes the holding, and logs
+        the action in the transaction history.
+
+        Args:
+            ticker: Security ticker symbol.
+            quantity: Number of shares to sell. Must be positive.
+            price: Sale price per share.
+
+        Raises:
+            ValueError: If quantity is non-positive or exceeds currently held shares.
+        """
         if quantity <= 0:
             raise ValueError("quantity must be a positive number of shares")
 
@@ -579,11 +645,10 @@ class PortfolioManager:
         if existing is None or existing.quantity_shares < quantity:
             raise ValueError("cannot sell more shares than are currently held")
 
-        cash = self.GetCashAmount()         # get current amount of cash
+        cash = self.get_cash_amount()
 
-        sellAmount = quantity * price       # get amount of money we make from sale
+        sellAmount = quantity * price
 
-        # add that to current cash
         self.db_manager.set_cash((cash + sellAmount))
 
         existing.quantity_shares -= quantity
@@ -592,95 +657,108 @@ class PortfolioManager:
         else:
             self.db_manager.update_holding(existing)
 
-        # record the sell in the transactions ledger
-        self.db_manager.add_transaction(Transaction(
-            None, ticker, quantity, price, datetime.now(), "sell"))
+        self.db_manager.add_transaction(
+            Transaction(None, ticker, quantity, price, datetime.now(), "sell")
+        )
 
-    # Gets the current amount of cash for the user
-    # Returns the amount of cash, not the cash holding
+    def get_cash_amount(self) -> float:
+        """Retrieves the current cash balance.
 
-    def GetCashAmount(self) -> float:
-        dbRes = self.db_manager.get_cash()
-        if (dbRes):
-            return dbRes
+        Returns:
+            float: Total cash amount, defaulting to 0 if none recorded.
+        """
+        db_res = self.db_manager.get_cash()
+        if db_res:
+            return db_res
         else:
             return 0
 
-    # Returns a list of holdings dicts with all the same fields, plus the market value, the
-    # change since yesterday's close as both dollars (change_since_close) and a percent
-    # (change_pct_since_close), and each holding's % allocation of the portfolio.
-    # Cash is included as its own holding (h_type "Cash") whose market value is the portfolio's
-    # cash balance; fields that don't apply to cash (symbol, num_shares, curr_price, last_close,
-    # change_since_close, change_pct_since_close) are set to "--". Cash is part of the total
-    # used for % allocation.
-    def CalculateHoldingInfo(self, holdings):
+    def calculate_holding_info(self, holdings: list[dict]) -> list[dict]:
+        """Enriches raw holdings data with current value, daily movement, and allocation.
+
+        Appends cash as an explicit leading entry.
+
+        Args:
+            holdings: List of dicts representing raw security positions with market quotes.
+
+        Returns:
+            list[dict]: Enriched holdings list leading with Cash, including market values,
+            daily dollar/percent changes, and portfolio allocation percentages.
+        """
         enriched = []
-        cashAmount = self.GetCashAmount()   # gets the cash amount we currently have
-        total_value = cashAmount
+        cash_amount = self.get_cash_amount()
+        total_value = cash_amount
 
         for holding in holdings:
             num_shares = holding["num_shares"]
             curr_price = holding["curr_price"]
             previous_close = holding["previous_close"]
 
-            # A throttled Yahoo answers with fields missing rather than raising,
-            # so a quote can arrive with no previous close, or no price at all.
-            # The row keeps whatever it does know and carries "--" for the rest,
-            # the same way the cash row does, instead of failing the whole page.
             priced = curr_price is not None
             comparable = priced and bool(previous_close)
 
             market_value = num_shares * curr_price if priced else 0
-            change_since_close = (num_shares * (curr_price - previous_close)
-                                  if comparable else "--")
-            change_pct_since_close = ((curr_price - previous_close) /
-                                      previous_close * 100) if comparable else "--"
+            change_since_close = (
+                (num_shares * (curr_price - previous_close)) if comparable else "--"
+            )
+            change_pct_since_close = (
+                ((curr_price - previous_close) / previous_close * 100)
+                if comparable
+                else "--"
+            )
             total_value += market_value
 
-            enriched.append({
-                "symbol": holding["symbol"],
-                "name": holding["name"],
-                "h_type": holding["h_type"],
-                "sector": holding.get("sector", "Other"),
-                "num_shares": num_shares,
-                "curr_price": curr_price,
-                "previous_close": previous_close,
-                "market_value": market_value,
-                "change_since_close": change_since_close,
-                "change_pct_since_close": change_pct_since_close,
-            })
+            enriched.append(
+                {
+                    "symbol": holding["symbol"],
+                    "name": holding["name"],
+                    "h_type": holding["h_type"],
+                    "sector": holding.get("sector", "Other"),
+                    "num_shares": num_shares,
+                    "curr_price": curr_price,
+                    "previous_close": previous_close,
+                    "market_value": market_value,
+                    "change_since_close": change_since_close,
+                    "change_pct_since_close": change_pct_since_close,
+                }
+            )
 
-        # add cash as a holding, with "--" for the fields that don't apply to it.
-        # it goes at the front so the table always leads with the cash row.
-        enriched.insert(0, {
-            "symbol": "--",
-            "name": "Cash",
-            "h_type": "Cash",
-            "sector": "Cash",
-            "num_shares": "--",
-            "curr_price": "--",
-            "previous_close": "--",
-            "market_value": cashAmount,
-            "change_since_close": "--",
-            "change_pct_since_close": "--",
-        })
+        enriched.insert(
+            0,
+            {
+                "symbol": "--",
+                "name": "Cash",
+                "h_type": "Cash",
+                "sector": "Cash",
+                "num_shares": "--",
+                "curr_price": "--",
+                "previous_close": "--",
+                "market_value": cash_amount,
+                "change_since_close": "--",
+                "change_pct_since_close": "--",
+            },
+        )
 
-        # second pass: now that we know the portfolio total (holdings + cash), set each holding's % allocation
         for holding in enriched:
             holding["allocation_pct"] = (
-                holding["market_value"] / total_value * 100) if total_value else 0
+                (holding["market_value"] / total_value * 100) if total_value else 0
+            )
 
         return enriched
 
-    # Aggregates market value of holdings by an arbitrary grouping field --
-    # "h_type" for the asset-type breakdown, "sector" for the industry
-    # breakdown (cash is included as its own group in both, since
-    # CalculateHoldingInfo tags it with h_type="Cash" and sector="Cash").
-    # Returns a list of {label, market_value, allocation_pct}, sorted by label
-    # so a group keeps the same slice colour from one refresh to the next --
-    # sorting by value would repaint the chart whenever two groups swapped places.
+    def calculate_allocation_by_field(
+        self, holdings: List[dict], field: str
+    ) -> list[dict]:
+        """Aggregates portfolio market value and allocation grouped by a specific field.
 
-    def CalculateAllocationByField(self, holdings, field: str):
+        Args:
+            holdings: List of enriched holding records.
+            field: Dictionary key to aggregate by (e.g., "h_type" or "sector").
+
+        Returns:
+            list[dict]: List sorted by label containing label, aggregated market_value,
+            and total allocation_pct.
+        """
         value_by_label = {}
         total_value = 0
 
@@ -694,56 +772,53 @@ class PortfolioManager:
         allocations = []
         for label in sorted(value_by_label):
             value = value_by_label[label]
-            allocations.append({
-                "label": label,
-                "market_value": value,
-                "allocation_pct": (value / total_value * 100) if total_value else 0,
-            })
+            allocations.append(
+                {
+                    "label": label,
+                    "market_value": value,
+                    "allocation_pct": (
+                        (value / total_value * 100) if total_value else 0
+                    ),
+                }
+            )
 
         return allocations
 
-    # Measures the portfolio's market risk using beta
-    #
-    # Yahoo doesn't have a beta for every security. A holding whose beta is unknown
-    # is left out of the average rather than counted as 0.0 -- counting it as 0.0
-    # would be calling it cash, and would understate risk. What got left
-    # out is reported as coverage_pct, so the caller can tell whether the number
-    # describes the whole portfolio or only a slice of it.
-    #
-    # Returns:
-    #   {portfolio_beta: 1.05, risk_level: "Market", coverage_pct: 92.4,
-    #    total_value: ..., covered_value: ...,
-    #    holdings: [{symbol, name, h_type, beta, market_value, weight_pct,
-    #                contribution, risk_share_pct}, ...],
-    #    unpriced: ["XYZ", ...],
-    #    highlight: {symbol, name, weight_pct, risk_share_pct, direction} | None}
-    # holdings is sorted by contribution, so the biggest sources of risk lead.
+    def calculate_portfolio_risk(self) -> dict:
+        """Measures overall portfolio market risk using weighted security betas.
 
-    def CalculatePortfolioRisk(self):
-        dbHoldingsRes = self.db_manager.get_holdings()
+        Computes portfolio beta, risk level categorization, coverage percent,
+        and per-holding risk contributions sorted from highest risk contributor.
+
+        Returns:
+            dict: Portfolio risk report containing portfolio_beta, risk_level,
+            coverage_pct, holdings, unpriced tickers, risk highlights, and beta bands.
+        """
+        db_holding_res = self.db_manager.get_holdings()
 
         quotes = self.finance_manager.get_stocks_by_tickers(
-            [holding.ticker for holding in dbHoldingsRes])
+            [holding.ticker for holding in db_holding_res]
+        )
 
-        cashAmount = self.GetCashAmount()
+        cash_amount = self.get_cash_amount()
 
-        # cash has 0.0 beta
-        total_value = cashAmount
-        covered_value = cashAmount
+        total_value = cash_amount
+        covered_value = cash_amount
         unpriced = []
 
-        rows = [{
-            "symbol": "--",
-            "name": "Cash",
-            "h_type": "Cash",
-            "beta": 0.0,
-            "market_value": cashAmount,
-        }]
+        rows = [
+            {
+                "symbol": "--",
+                "name": "Cash",
+                "h_type": "Cash",
+                "beta": 0.0,
+                "market_value": cash_amount,
+            }
+        ]
 
-        for holding in dbHoldingsRes:
+        for holding in db_holding_res:
             quote = quotes.get(holding.ticker)
 
-            # skip if there is no beta
             if quote is None or quote["current_price"] is None:
                 unpriced.append(holding.ticker)
                 continue
@@ -755,13 +830,15 @@ class PortfolioManager:
             if beta is not None:
                 covered_value += market_value
 
-            rows.append({
-                "symbol": holding.ticker,
-                "name": holding.name,
-                "h_type": holding.h_type,
-                "beta": beta,
-                "market_value": market_value,
-            })
+            rows.append(
+                {
+                    "symbol": holding.ticker,
+                    "name": holding.name,
+                    "h_type": holding.h_type,
+                    "beta": beta,
+                    "market_value": market_value,
+                }
+            )
 
         for row in rows:
             if row["beta"] is None or not covered_value:
@@ -775,48 +852,48 @@ class PortfolioManager:
 
         portfolio_beta = sum(row["contribution"] for row in rows)
 
-        # each holding's share of the portfolio's beta, as a percent
-        # An unrated holding lands = 0, like cash does,
         for row in rows:
-            row["risk_share_pct"] = (row["contribution"] / portfolio_beta * 100
-                                     ) if portfolio_beta else 0
+            row["risk_share_pct"] = (
+                (row["contribution"] / portfolio_beta * 100) if portfolio_beta else 0
+            )
 
         rows.sort(key=lambda row: row["contribution"], reverse=True)
 
         return {
             "portfolio_beta": portfolio_beta,
-            "risk_level": self.ClassifyRiskLevel(portfolio_beta),
-            "coverage_pct": (covered_value / total_value * 100) if total_value else 0,
+            "risk_level": self.classify_risk_level(portfolio_beta),
+            "coverage_pct": ((covered_value / total_value * 100) if total_value else 0),
             "total_value": total_value,
             "covered_value": covered_value,
             "holdings": rows,
             "unpriced": unpriced,
-            "highlight": self.FindRiskHighlight(rows),
-            # the thresholds risk_level was decided with, so the meter can shade
-            # the same bands it labels. Sent rather than repeated in the frontend
-            # so tuning the constants above can't leave the two disagreeing.
+            "highlight": self.find_risk_highlight(rows),
             "beta_bands": {
                 "conservative_ceiling": _CONSERVATIVE_BETA_CEILING,
                 "market_ceiling": _MARKET_BETA_CEILING,
             },
         }
 
-    # Picks the holding whose share of the risk is furthest from its share of the
-    # money, for information for user
-    # Returns the numbers, not the wording, so the copy stays in the component.
-    #
-    # Cash is skipped (it is 0 beta by definition, so it always diverges and never
-    # says anything), and so are unrated holdings (no risk share to compare).
-    # Returns None when nothing diverges enough to be worth a claim.
+    def find_risk_highlight(self, rows: list[dict]) -> Optional[dict]:
+        """Identifies the holding with the largest divergence between risk share and capital weight.
 
-    def FindRiskHighlight(self, rows):
-        candidates = [row for row in rows
-                      if row["beta"] is not None and row["h_type"] != "Cash"]
+        Args:
+            rows: List of holding dicts calculated during risk analysis.
+
+        Returns:
+            dict | None: Highlight summary for the most divergent holding, or None
+            if no holding exceeds the minimum divergence gap threshold.
+        """
+        candidates = [
+            row for row in rows if row["beta"] is not None and row["h_type"] != "Cash"
+        ]
         if not candidates:
             return None
 
-        top = max(candidates,
-                  key=lambda row: abs(row["risk_share_pct"] - row["weight_pct"]))
+        top = max(
+            candidates,
+            key=lambda row: abs(row["risk_share_pct"] - row["weight_pct"]),
+        )
 
         gap = top["risk_share_pct"] - top["weight_pct"]
         if abs(gap) < _RISK_HIGHLIGHT_MIN_GAP_PCT:
@@ -827,15 +904,29 @@ class PortfolioManager:
             "name": top["name"],
             "weight_pct": top["weight_pct"],
             "risk_share_pct": top["risk_share_pct"],
-            # which way to word it: "but" vs "but only"
             "direction": "above" if gap > 0 else "below",
         }
 
-    # Turns a beta into the plain-language bucket the UI can label it with. The
-    # thresholds are a presentation choice, not a financial standard -- they're
-    # here so the wording stays consistent wherever risk gets shown.
+    def search_securities(self, query: str) -> list[dict]:
+        """Searches for securities matching a text query string.
 
-    def ClassifyRiskLevel(self, beta: float) -> str:
+        Args:
+            query: Search string for ticker symbol or company name.
+
+        Returns:
+            list[dict]: List of matching security records.
+        """
+        return self.finance_manager.search_securities(query)
+
+    def classify_risk_level(self, beta: float) -> str:
+        """Classifies a numerical beta into a human-readable risk category.
+
+        Args:
+            beta: Calculated portfolio beta value.
+
+        Returns:
+            str: Risk classification ("Conservative", "Market", or "Aggressive").
+        """
         if beta < _CONSERVATIVE_BETA_CEILING:
             return "Conservative"
         if beta <= _MARKET_BETA_CEILING:
@@ -843,17 +934,37 @@ class PortfolioManager:
         return "Aggressive"
 
     def get_top_movers(self) -> list[dict]:
+        """Fetches general top market movers from the finance manager.
+
+        Returns:
+            list[dict]: Raw top mover market quotes.
+        """
         return self.finance_manager.get_top_movers()
 
     def get_news(self) -> list[dict]:
+        """Retrieves financial news articles.
+
+        Returns:
+            list[dict]: Recent financial news items.
+        """
         return self.finance_manager.get_news()
 
-    def update_portfolio_value(self) -> float:
-        holdings_with_price = self._get_holdings_with_price()
-        enriched_holdings = self.CalculateHoldingInfo(holdings_with_price)
+    def update_portfolio_value(self) -> dict:
+        """Calculates current portfolio value and logs a new snapshot to the database.
 
-        summary = self.CalculatePortfolioSummary(enriched_holdings)
-        portfolio_value: float = summary['total_value']
+        Returns:
+            dict: Summary metrics for the logged snapshot containing total value,
+            day change, and day change percentage.
+        """
+        holdings_with_price = self._get_holdings_with_price()
+        enriched_holdings = self.calculate_holding_info(holdings_with_price)
+
+        summary = self.calculate_portfolio_summary(enriched_holdings)
+        portfolio_value: float = summary["total_value"]
         self.db_manager.add_portfolio_value(
-            datetime.now(), portfolio_value, summary['day_change'], summary['day_change_pct'])
+            datetime.now(),
+            portfolio_value,
+            summary["day_change"],
+            summary["day_change_pct"],
+        )
         return summary

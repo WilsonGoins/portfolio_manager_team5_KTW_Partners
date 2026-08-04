@@ -7,7 +7,7 @@ class Transaction(ADataBaseItem):
 
     def __init__(
         self,
-        trans_id: int,          # TODO: delete this? this is autoincremented by the db
+        trans_id: int,  # TODO: delete this? this is autoincremented by the db
         ticker: str,
         quantity: int,
         price: float,
