@@ -17,16 +17,16 @@ print(f"UPDATE_PORTFOLIO_VALUE={UPDATE_PORTFOLIO_VALUE}")
 
 # Absolute, because the working directory differs between `flask run` from
 # server/ and Vercel, which runs from the project root.
-CLIENT_DIST = os.path.abspath(os.path.join(
-    os.path.dirname(__file__), "..", "client", "port_manager", "dist"))
+CLIENT_DIST = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "client", "port_manager", "dist")
+)
 
 app = Flask(__name__)
 CORS(app)
 
 logging.basicConfig(level=logging.INFO)
 
-db_manager = DBManager(
-    DB_CONNECTION_STR, flask_logger=app.logger, enable_cache=True)
+db_manager = DBManager(DB_CONNECTION_STR, flask_logger=app.logger, enable_cache=True)
 finance_manager = FinanceManager(flask_logger=app.logger)
 portfolio_manager = PortfolioManager(db_manager, finance_manager)
 
@@ -46,8 +46,10 @@ def _claim_refresh() -> bool:
 
     now = time.monotonic()
     with _refresh_lock:
-        if (_last_refresh_at is not None
-                and now - _last_refresh_at < _REFRESH_MIN_INTERVAL_SECONDS):
+        if (
+            _last_refresh_at is not None
+            and now - _last_refresh_at < _REFRESH_MIN_INTERVAL_SECONDS
+        ):
             return False
 
         _last_refresh_at = now
@@ -71,12 +73,15 @@ def recurring_portfolio_value_update():
     while True:
         now = datetime.now()
 
-        next_hour = (now + timedelta(hours=1)).replace(minute=0,
-                                                       second=0, microsecond=0)
+        next_hour = (now + timedelta(hours=1)).replace(
+            minute=0, second=0, microsecond=0
+        )
         sleep_seconds = (next_hour - now).total_seconds()
 
-        app.logger.info(f"Next hourly portfolio update scheduled in {
-                        int(sleep_seconds)} seconds at {next_hour.strftime('%H:%M:%S')}")
+        app.logger.info(
+            f"Next hourly portfolio update scheduled in {
+                        int(sleep_seconds)} seconds at {next_hour.strftime('%H:%M:%S')}"
+        )
         time.sleep(sleep_seconds)
 
         if _check_market_open():
@@ -84,7 +89,8 @@ def recurring_portfolio_value_update():
                 with app.app_context():
                     app.logger.info("Updating portfolio value...")
                     new_value = portfolio_manager.update_portfolio_value()[
-                        'total_value']
+                        "total_value"
+                    ]
                     app.logger.info(
                         f"Update for portfolio value completed with new value: ${
                             new_value}."
@@ -95,8 +101,7 @@ def recurring_portfolio_value_update():
 
 
 if UPDATE_PORTFOLIO_VALUE:
-    bg_thread = threading.Thread(
-        target=recurring_portfolio_value_update, daemon=True)
+    bg_thread = threading.Thread(target=recurring_portfolio_value_update, daemon=True)
     bg_thread.start()
 
 
@@ -110,8 +115,7 @@ def serve_client(requested_path=""):
     if not os.path.isdir(CLIENT_DIST):
         return jsonify({"message": "Hello, World!", "status": "success"})
 
-    if requested_path and os.path.isfile(
-            os.path.join(CLIENT_DIST, requested_path)):
+    if requested_path and os.path.isfile(os.path.join(CLIENT_DIST, requested_path)):
         return send_from_directory(CLIENT_DIST, requested_path)
 
     return send_from_directory(CLIENT_DIST, "index.html")

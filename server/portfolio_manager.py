@@ -49,15 +49,17 @@ class PortfolioManager:
             yahoo_res = quotes.get(holding.ticker)
             if yahoo_res is None:
                 raise ValueError("Holding must be a valid security.")
-            holdings_with_price.append({
-                "symbol": holding.ticker,
-                "name": holding.name,
-                "h_type": holding.h_type,
-                "num_shares": holding.quantity_shares,
-                "curr_price": yahoo_res["current_price"],
-                "previous_close": yahoo_res["previous_close"],
-                "sector": yahoo_res.get("sector") or "Other",
-            })
+            holdings_with_price.append(
+                {
+                    "symbol": holding.ticker,
+                    "name": holding.name,
+                    "h_type": holding.h_type,
+                    "num_shares": holding.quantity_shares,
+                    "curr_price": yahoo_res["current_price"],
+                    "previous_close": yahoo_res["previous_close"],
+                    "sector": yahoo_res.get("sector") or "Other",
+                }
+            )
 
         return holdings_with_price
 
@@ -85,9 +87,7 @@ class PortfolioManager:
         enriched_holdings = self.calculate_holding_info(holdings_with_price)
         final_res["HoldingsTable"] = enriched_holdings
 
-        allocations = self.calculate_allocation_by_field(
-            enriched_holdings, "h_type"
-        )
+        allocations = self.calculate_allocation_by_field(enriched_holdings, "h_type")
         final_res["Allocations"] = allocations
         final_res["AllocationsBySector"] = self.calculate_allocation_by_field(
             enriched_holdings, "sector"
@@ -149,10 +149,12 @@ class PortfolioManager:
             }
 
         biggest_gainer = max(
-            movers, key=lambda holding: holding["change_pct_since_close"]
+            movers,
+            key=lambda holding: holding["change_pct_since_close"],
         )
         biggest_loser = min(
-            movers, key=lambda holding: holding["change_pct_since_close"]
+            movers,
+            key=lambda holding: holding["change_pct_since_close"],
         )
 
         return {
@@ -179,12 +181,14 @@ class PortfolioManager:
             if price is None or not previous_close:
                 continue
 
-            final_res.append({
-                "symbol": mover["symbol"],
-                "name": mover["name"],
-                "price": price,
-                "change": (price - previous_close) / previous_close * 100,
-            })
+            final_res.append(
+                {
+                    "symbol": mover["symbol"],
+                    "name": mover["name"],
+                    "price": price,
+                    "change": (price - previous_close) / previous_close * 100,
+                }
+            )
 
         return final_res
 
@@ -212,10 +216,12 @@ class PortfolioManager:
         history = []
         for pv in sorted(db_res, key=lambda pv: pv.p_date):
             dt_str = pv.p_date.isoformat()
-            history.append({
-                "date": dt_str,
-                "value": float(pv.value),
-            })
+            history.append(
+                {
+                    "date": dt_str,
+                    "value": float(pv.value),
+                }
+            )
 
         if todays_value is not None:
             today_dt = datetime.now(timezone.utc).isoformat()
@@ -225,9 +231,7 @@ class PortfolioManager:
             else:
                 history.append({"date": today_dt, "value": todays_value})
 
-        benchmark_closes = self.finance_manager.get_index_history(
-            benchmark_ticker
-        )
+        benchmark_closes = self.finance_manager.get_index_history(benchmark_ticker)
         if benchmark_closes:
             benchmark_dates = sorted(benchmark_closes)
 
@@ -259,9 +263,7 @@ class PortfolioManager:
         """
         enrichedHoldings = self._get_enriched_holdings()
         summary = self.calculate_portfolio_summary(enrichedHoldings)
-        history = self.get_portfolio_history(
-            todays_value=summary["total_value"]
-        )
+        history = self.get_portfolio_history(todays_value=summary["total_value"])
 
         if len(history) < 2:
             return {"drawdown": None, "runup": None}
@@ -272,7 +274,10 @@ class PortfolioManager:
         def _day(date_str):
             return _parse(date_str).isoformat() if date_str else None
 
-        peak_value, peak_date = history[0]["value"], history[0]["date"]
+        peak_value, peak_date = (
+            history[0]["value"],
+            history[0]["date"],
+        )
         max_dd_pct = 0
         dd_peak_value = dd_peak_date = dd_trough_value = dd_trough_date = None
 
@@ -287,8 +292,14 @@ class PortfolioManager:
                 )
                 if pct < max_dd_pct:
                     max_dd_pct = pct
-                    dd_peak_value, dd_peak_date = peak_value, peak_date
-                    dd_trough_value, dd_trough_date = point["value"], point["date"]
+                    dd_peak_value, dd_peak_date = (
+                        peak_value,
+                        peak_date,
+                    )
+                    dd_trough_value, dd_trough_date = (
+                        point["value"],
+                        point["date"],
+                    )
 
         drawdown = None
         if dd_trough_date is not None:
@@ -318,13 +329,19 @@ class PortfolioManager:
                 "recovery_days": recovery_days,
             }
 
-        trough_value, trough_date = history[0]["value"], history[0]["date"]
+        trough_value, trough_date = (
+            history[0]["value"],
+            history[0]["date"],
+        )
         max_ru_pct = 0
         ru_trough_value = ru_trough_date = ru_peak_value = ru_peak_date = None
 
         for point in history:
             if point["value"] < trough_value:
-                trough_value, trough_date = point["value"], point["date"]
+                trough_value, trough_date = (
+                    point["value"],
+                    point["date"],
+                )
             else:
                 pct = (
                     (point["value"] - trough_value) / trough_value * 100
@@ -333,8 +350,14 @@ class PortfolioManager:
                 )
                 if pct > max_ru_pct:
                     max_ru_pct = pct
-                    ru_trough_value, ru_trough_date = trough_value, trough_date
-                    ru_peak_value, ru_peak_date = point["value"], point["date"]
+                    ru_trough_value, ru_trough_date = (
+                        trough_value,
+                        trough_date,
+                    )
+                    ru_peak_value, ru_peak_date = (
+                        point["value"],
+                        point["date"],
+                    )
 
         runup = None
         if ru_peak_date is not None:
@@ -379,9 +402,7 @@ class PortfolioManager:
         )
 
         previous_value = total_value - day_change
-        day_change_pct = (
-            (day_change / previous_value * 100) if previous_value else 0
-        )
+        day_change_pct = (day_change / previous_value * 100) if previous_value else 0
 
         return {
             "total_value": total_value,
@@ -398,13 +419,15 @@ class PortfolioManager:
         final_res = []
         dbTransRes = self.db_manager.get_transactions()
         for trans in dbTransRes:
-            final_res.append({
-                "date": trans.trans_date,
-                "ticker": trans.ticker,
-                "quantity": trans.quantity,
-                "price": trans.price,
-                "action": trans.action_taken,
-            })
+            final_res.append(
+                {
+                    "date": trans.trans_date,
+                    "ticker": trans.ticker,
+                    "quantity": trans.quantity,
+                    "price": trans.price,
+                    "action": trans.action_taken,
+                }
+            )
         return final_res
 
     def buy(self, ticker: str, quantity: int, price: float) -> None:
@@ -436,7 +459,10 @@ class PortfolioManager:
                 raise ValueError("Holding must be a valid security.")
             self.db_manager.add_holding(
                 Holding(
-                    ticker, yahooData["name"], yahooData["stock_type"], quantity
+                    ticker,
+                    yahooData["name"],
+                    yahooData["stock_type"],
+                    quantity,
                 )
             )
         else:
@@ -446,9 +472,7 @@ class PortfolioManager:
         self.db_manager.set_cash((cash - total_cost))
 
         self.db_manager.add_transaction(
-            Transaction(
-                None, ticker, quantity, price, datetime.now(), "buy"
-            )
+            Transaction(None, ticker, quantity, price, datetime.now(), "buy")
         )
 
     def sell(self, ticker: str, quantity: int, price: float) -> None:
@@ -485,9 +509,7 @@ class PortfolioManager:
             self.db_manager.update_holding(existing)
 
         self.db_manager.add_transaction(
-            Transaction(
-                None, ticker, quantity, price, datetime.now(), "sell"
-            )
+            Transaction(None, ticker, quantity, price, datetime.now(), "sell")
         )
 
     def get_cash_amount(self) -> float:
@@ -528,9 +550,7 @@ class PortfolioManager:
 
             market_value = num_shares * curr_price if priced else 0
             change_since_close = (
-                (num_shares * (curr_price - previous_close))
-                if comparable
-                else "--"
+                (num_shares * (curr_price - previous_close)) if comparable else "--"
             )
             change_pct_since_close = (
                 ((curr_price - previous_close) / previous_close * 100)
@@ -539,18 +559,20 @@ class PortfolioManager:
             )
             total_value += market_value
 
-            enriched.append({
-                "symbol": holding["symbol"],
-                "name": holding["name"],
-                "h_type": holding["h_type"],
-                "sector": holding.get("sector", "Other"),
-                "num_shares": num_shares,
-                "curr_price": curr_price,
-                "previous_close": previous_close,
-                "market_value": market_value,
-                "change_since_close": change_since_close,
-                "change_pct_since_close": change_pct_since_close,
-            })
+            enriched.append(
+                {
+                    "symbol": holding["symbol"],
+                    "name": holding["name"],
+                    "h_type": holding["h_type"],
+                    "sector": holding.get("sector", "Other"),
+                    "num_shares": num_shares,
+                    "curr_price": curr_price,
+                    "previous_close": previous_close,
+                    "market_value": market_value,
+                    "change_since_close": change_since_close,
+                    "change_pct_since_close": change_pct_since_close,
+                }
+            )
 
         enriched.insert(
             0,
@@ -570,9 +592,7 @@ class PortfolioManager:
 
         for holding in enriched:
             holding["allocation_pct"] = (
-                (holding["market_value"] / total_value * 100)
-                if total_value
-                else 0
+                (holding["market_value"] / total_value * 100) if total_value else 0
             )
 
         return enriched
@@ -603,13 +623,15 @@ class PortfolioManager:
         allocations = []
         for label in sorted(value_by_label):
             value = value_by_label[label]
-            allocations.append({
-                "label": label,
-                "market_value": value,
-                "allocation_pct": (value / total_value * 100)
-                if total_value
-                else 0,
-            })
+            allocations.append(
+                {
+                    "label": label,
+                    "market_value": value,
+                    "allocation_pct": (
+                        (value / total_value * 100) if total_value else 0
+                    ),
+                }
+            )
 
         return allocations
 
@@ -635,13 +657,15 @@ class PortfolioManager:
         covered_value = cash_amount
         unpriced = []
 
-        rows = [{
-            "symbol": "--",
-            "name": "Cash",
-            "h_type": "Cash",
-            "beta": 0.0,
-            "market_value": cash_amount,
-        }]
+        rows = [
+            {
+                "symbol": "--",
+                "name": "Cash",
+                "h_type": "Cash",
+                "beta": 0.0,
+                "market_value": cash_amount,
+            }
+        ]
 
         for holding in db_holding_res:
             quote = quotes.get(holding.ticker)
@@ -657,13 +681,15 @@ class PortfolioManager:
             if beta is not None:
                 covered_value += market_value
 
-            rows.append({
-                "symbol": holding.ticker,
-                "name": holding.name,
-                "h_type": holding.h_type,
-                "beta": beta,
-                "market_value": market_value,
-            })
+            rows.append(
+                {
+                    "symbol": holding.ticker,
+                    "name": holding.name,
+                    "h_type": holding.h_type,
+                    "beta": beta,
+                    "market_value": market_value,
+                }
+            )
 
         for row in rows:
             if row["beta"] is None or not covered_value:
@@ -679,9 +705,7 @@ class PortfolioManager:
 
         for row in rows:
             row["risk_share_pct"] = (
-                (row["contribution"] / portfolio_beta * 100)
-                if portfolio_beta
-                else 0
+                (row["contribution"] / portfolio_beta * 100) if portfolio_beta else 0
             )
 
         rows.sort(key=lambda row: row["contribution"], reverse=True)
@@ -689,9 +713,7 @@ class PortfolioManager:
         return {
             "portfolio_beta": portfolio_beta,
             "risk_level": self.classify_risk_level(portfolio_beta),
-            "coverage_pct": (covered_value / total_value * 100)
-            if total_value
-            else 0,
+            "coverage_pct": ((covered_value / total_value * 100) if total_value else 0),
             "total_value": total_value,
             "covered_value": covered_value,
             "holdings": rows,
@@ -714,9 +736,7 @@ class PortfolioManager:
             if no holding exceeds the minimum divergence gap threshold.
         """
         candidates = [
-            row
-            for row in rows
-            if row["beta"] is not None and row["h_type"] != "Cash"
+            row for row in rows if row["beta"] is not None and row["h_type"] != "Cash"
         ]
         if not candidates:
             return None

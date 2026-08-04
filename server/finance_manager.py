@@ -63,14 +63,14 @@ class _TTLCache:
 
             # over the cap: drop everything already expired, since an expired
             # entry is dead weight -- it can only ever read as a miss
-            self._entries = {k: (v, t) for k, (v, t) in self._entries.items()
-                             if now - t <= self._ttl}
+            self._entries = {
+                k: (v, t) for k, (v, t) in self._entries.items() if now - t <= self._ttl
+            }
 
             # still over: drop the oldest until we fit
             overflow = len(self._entries) - self._max_entries
             if overflow > 0:
-                oldest = sorted(
-                    self._entries, key=lambda k: self._entries[k][1])
+                oldest = sorted(self._entries, key=lambda k: self._entries[k][1])
                 for k in oldest[:overflow]:
                     del self._entries[k]
 
@@ -87,36 +87,57 @@ class FinanceManager:
         self._cache = _TTLCache(_QUOTE_TTL_SECONDS)
         self._history_cache = _TTLCache(_HISTORY_TTL_SECONDS)
 
-    def empty_cache(self):
-        """Drops every cached quote, so the next read goes back to Yahoo. Used by
-        the overview's manual refresh, which is meant to fetch, not to re-serve."""
-        self._cache.clear()
+        def empty_cache(self) -> None:
+            """Clears all cached financial quotes.
 
-    def _format_large_number(self, val: float) -> str:
-        """Helper to format large raw numbers into readable financial string values ($3.05T, 48.2M, etc.)."""
-        if not val or val == 0:
-            return "N/A"
+            Forces subsequent read requests to bypass local memory and fetch fresh data
+            directly from Yahoo Finance. Typically invoked during manual user refreshes
+            to guarantee up-to-date data.
+            """
+            self._cache.clear()
 
-        is_currency = val > 1000  # Simple heuristic for Market Cap vs Volume
+        def _format_large_number(self, val: float) -> str:
+            """Formats large numerical values into compact, human-readable financial strings.
 
-        for unit, symbol in [(1_000_000_000_000, 'T'), (1_000_000_000, 'B'), (1_000_000, 'M'), (1_000, 'K')]:
-            if abs(val) >= unit:
-                formatted = f"{val / unit:.1f}{symbol}"
-                return f"${formatted}" if is_currency else formatted
-        return f"${val:.2f}" if is_currency else f"{val:.0f}"
+            Applies magnitude suffixes (K, M, B, T) and conditionally prefixes currency
+            symbols based on standard financial heuristics.
+
+            Args:
+                val (float): The raw numeric value to format (e.g., market cap, volume).
+
+            Returns:
+                str: The abbreviated string representation (e.g., "$3.1T", "48.2M"),
+                    or "N/A" if the input value is zero or falsy.
+            """
+            if not val or val == 0:
+                return "N/A"
+
+            is_currency = val > 1000  # Simple heuristic for Market Cap vs Volume
+
+            for unit, symbol in [
+                (1_000_000_000_000, "T"),
+                (1_000_000_000, "B"),
+                (1_000_000, "M"),
+                (1_000, "K"),
+            ]:
+                if abs(val) >= unit:
+                    formatted = f"{val / unit:.1f}{symbol}"
+                    return f"${formatted}" if is_currency else formatted
+            return f"${val:.2f}" if is_currency else f"{val:.0f}"
 
     def _extract_beta(self, info: dict) -> float | None:
-        """Beta out of an already-fetched `info` payload -- how much the security
-        moves for a given move in the broad market.
+        """Extracts the beta coefficient from a Yahoo Finance API payload.
 
-        Yahoo files it under two different keys: equities carry "beta" (5 year
-        monthly against the S&P 500), while ETFs and mutual funds carry
-        "beta3Year" instead. Neither is guaranteed -- some tickers come back with
-        a full payload and simply no beta in it -- so None is a normal answer
-        here and callers have to handle it.
+        Checks for both equity-style ("beta", 5-year monthly against S&P 500)
+        and fund-style ("beta3Year") keys. Validates that the returned value
+        can be safely cast to a finite floating-point number.
 
-        Read off the same `info` dict the price comes from, so a beta costs no
-        extra request.
+        Args:
+            info (dict): The raw ticker information payload fetched from Yahoo Finance.
+
+        Returns:
+            float | None: The numerical beta value if present and finite, or None if
+                unusable, non-numeric, infinite, or missing.
         """
         # not `a or b`: a legitimate beta of 0.0 is falsy and would fall through
         beta = info.get("beta")
@@ -135,8 +156,22 @@ class FinanceManager:
 
         return beta if math.isfinite(beta) else None
 
-    def get_stock_by_ticker(self, ticker: str) -> dict:
-        """Method 1: Query for stock by ticker."""
+    def get_stock_by_ticker(self, ticker: str) -> dict | None:
+        """Fetches stock quote details for a given symbol, with caching support.
+
+        Retrieves market data using yfinance, extracts core stock fields (price,
+        name, sector, beta), and stores completed quotes in local cache. Incomplete
+        quotes resulting from throttled or partial API responses are returned
+        without being cached to ensure future attempts can retry fetching.
+
+        Args:
+            ticker (str): The stock or ETF symbol to look up (e.g., "AAPL").
+
+        Returns:
+            dict | None: A dictionary containing quote data (ticker, current_price,
+                name, stock_type, previous_close, sector, beta) if successful,
+                or None if an exception occurs during the fetch.
+        """
         # keyed on the normalised symbol so "aapl" and "AAPL" share one entry.
         # str() keeps a non-string ticker out of the cache lookup and lets it
         # fail below the way it always has, as a caught error rather than here.
@@ -149,7 +184,8 @@ class FinanceManager:
             info = yf.Ticker(ticker).info
             quote = {
                 "ticker": ticker.upper(),
-                "current_price": info.get("currentPrice") or info.get("regularMarketPrice"),
+                "current_price": info.get("currentPrice")
+                or info.get("regularMarketPrice"),
                 "name": info.get("longName") or info.get("shortName"),
                 "stock_type": info.get("quoteType"),
                 "previous_close": info.get("previousClose"),
@@ -161,7 +197,7 @@ class FinanceManager:
             }
         except Exception as e:
             self.logger.error(f"Failed to fetch stock by ticker '{
-                              ticker}': {e}", exc_info=True)
+                ticker}': {e}", exc_info=True)
             return None
 
         # Not raising isn't the same as succeeding: a throttled Yahoo returns a
@@ -176,19 +212,24 @@ class FinanceManager:
             self._cache.set(cache_key, quote)
         else:
             self.logger.warning(
-                f"Incomplete quote for '{ticker}', not caching: {quote}")
+                f"Incomplete quote for '{ticker}', not caching: {quote}"
+            )
 
         return quote
 
-    def get_stocks_by_tickers(self, tickers: list[str]) -> dict:
-        """
-        Method 1b: Query for several stocks at once.
-        Same per-stock result as get_stock_by_ticker, but the requests are run
-        concurrently instead of back to back, so the wait is roughly one round
-        trip rather than one per ticker.
-        Returns: {ticker: stock dict}, keyed by the ticker as it was passed in.
-                 A ticker that couldn't be fetched maps to None, exactly as
-                 get_stock_by_ticker would return for it on its own.
+    def get_stocks_by_tickers(self, tickers: list[str]) -> dict[str, dict | None]:
+        """Fetches quote details for multiple tickers concurrently.
+
+        Executes queries using a thread pool to optimize fetch times down to a
+        single concurrent round trip. Deduplicates inputs prior to fetching.
+
+        Args:
+            tickers (list[str]): List of stock or ETF symbols to look up.
+
+        Returns:
+            dict[str, dict | None]: A dictionary mapping each original input ticker
+                symbol to its corresponding quote dictionary, or None if the individual
+                fetch failed.
         """
         if not tickers:
             return {}
@@ -201,9 +242,12 @@ class FinanceManager:
 
         results = {}
         with ThreadPoolExecutor(
-                max_workers=min(len(unique_tickers), _MAX_QUOTE_WORKERS)) as executor:
-            futures = {ticker: executor.submit(self.get_stock_by_ticker, ticker)
-                       for ticker in unique_tickers}
+            max_workers=min(len(unique_tickers), _MAX_QUOTE_WORKERS)
+        ) as executor:
+            futures = {
+                ticker: executor.submit(self.get_stock_by_ticker, ticker)
+                for ticker in unique_tickers
+            }
 
             for ticker, future in futures.items():
                 try:
@@ -212,16 +256,26 @@ class FinanceManager:
                     # get_stock_by_ticker swallows its own failures, so this is
                     # something unexpected -- keep the other tickers' results
                     self.logger.error(
-                        f"Failed to fetch stock by ticker '{ticker}': {e}", exc_info=True)
+                        f"Failed to fetch stock by ticker '{ticker}': {e}",
+                        exc_info=True,
+                    )
                     results[ticker] = None
 
         return results
 
-    def get_stock_by_name(self, name: str) -> dict:
-        """
-        Method 2: Query for stocks by name/ticker (fuzzy).
-        Returns up to `max_results` closely matching securities, ranked by relevance.
-        Each result: current price, ticker, name, stock type, previous close.
+    def get_stock_by_name(self, name: str) -> list[dict]:
+        """Performs a fuzzy search for securities matching a name or query string.
+
+        Queries Yahoo Finance for matching ticker symbols and retrieves complete quote
+        data for each valid result.
+
+        Args:
+            name (str): The search term, such as a company name or partial ticker.
+
+        Returns:
+            list[dict]: A list of quote dictionaries for matching securities, ranked by
+                relevance. Returns an empty list if the query is empty, no results
+                are found, or an error occurs.
         """
         query = name.strip()
         if not query:
@@ -243,16 +297,23 @@ class FinanceManager:
             return matches
         except Exception as e:
             self.logger.error(f"Failed to fetch stocks by name '{
-                              query}': {e}", exc_info=True)
+                query}': {e}", exc_info=True)
             return []
 
-    def get_index_history(self, ticker: str = "^GSPC") -> dict:
-        """Daily closes for a market index (default: the S&P 500), as far back
-        as Yahoo's 1-year history goes. Returns {"YYYY-MM-DD": close_price},
-        so a caller can look a date up directly rather than scanning a list.
-        Returns {} on failure rather than None, since a benchmark comparison
-        that's silently missing a few points is more useful than one that
-        can't run at all.
+    def get_index_history(self, ticker: str = "^GSPC") -> dict[str, float]:
+        """Retrieves 1-year historical daily closing prices for a market index.
+
+        Fetches daily price history and formats the dates as string keys for fast,
+        direct lookup. Results are stored in the index history cache upon success.
+
+        Args:
+            ticker (str, optional): The symbol for the market index to look up.
+                Defaults to "^GSPC" (S&P 500).
+
+        Returns:
+            dict[str, float]: A mapping of dates in "YYYY-MM-DD" format to their
+                corresponding rounded closing prices. Returns an empty dictionary
+                on failure or if no data is available.
         """
         cache_key = ("index_history", ticker.upper())
         cached = self._history_cache.get(cache_key)
@@ -271,15 +332,25 @@ class FinanceManager:
             }
         except Exception as e:
             self.logger.error(f"Failed to fetch index history for '{
-                              ticker}': {e}", exc_info=True)
+                ticker}': {e}", exc_info=True)
             return {}
 
         self._history_cache.set(cache_key, closes)
         return closes
 
     def get_top_movers(self, count: int = 5) -> list[dict]:
-        """
-        Method 3: Query for the 5 biggest movers.
+        """Fetches the top market gainers for the current trading day.
+
+        Uses Yahoo Finance screeners to retrieve top daily gainers, fetches full
+        quote details for the batch, and caches the result.
+
+        Args:
+            count (int, optional): The number of top moving securities to retrieve.
+                Defaults to 5.
+
+        Returns:
+            list[dict]: A list of quote dictionaries representing the top daily
+                gainers. Returns an empty list if fetching fails.
         """
         cached = self._cache.get(("movers", count))
         if cached is not None:
@@ -293,13 +364,27 @@ class FinanceManager:
             movers = self._get_security_details_batch(symbols)
         except Exception as e:
             self.logger.error(f"Failed to fetch top movers: {
-                              e}", exc_info=True)
+                e}", exc_info=True)
             return []
 
         self._cache.set(("movers", count), movers)
         return movers
 
     def search_securities(self, query: str, max_results: int = 5) -> list[dict]:
+        """Searches for securities by name or symbol and retrieves batch quote data.
+
+        Executes a search query against Yahoo Finance and fetches comprehensive details
+        for up to `max_results` matching tickers.
+
+        Args:
+            query (str): The search term (e.g., ticker symbol or company name).
+            max_results (int, optional): Maximum number of search results to return.
+                Defaults to 5.
+
+        Returns:
+            list[dict]: A list of quote dictionaries for matching securities.
+                Returns an empty list if the query is blank or search fails.
+        """
         query = query.strip()
         if not query:
             return []
@@ -311,27 +396,46 @@ class FinanceManager:
             return self._get_security_details_batch(symbols)
         except Exception as e:
             self.logger.error(f"Failed to search securities for '{
-                              query}': {e}", exc_info=True)
+                query}': {e}", exc_info=True)
             return []
 
     def _get_security_details_batch(self, tickers: list[str]) -> list[dict]:
-        """Details for several tickers, in the order given.
+        """Fetches comprehensive security details for a batch of tickers concurrently.
 
-        Yahoo answers one ticker per request, so these run concurrently -- the
-        wait is roughly one round trip rather than one per ticker. Tickers that
-        fail are dropped rather than failing the whole batch.
+        Executes queries using a thread pool to retrieve detailed data in parallel.
+        Filters out any tickers that fail to resolve or return None.
+
+        Args:
+            tickers (list[str]): List of stock or ETF symbols to retrieve details for.
+
+        Returns:
+            list[dict]: A list of SecurityCard-shaped dictionaries containing
+                detailed security data for all successfully fetched tickers.
         """
         if not tickers:
             return []
 
         with ThreadPoolExecutor(
-                max_workers=min(len(tickers), _MAX_QUOTE_WORKERS)) as executor:
+            max_workers=min(len(tickers), _MAX_QUOTE_WORKERS)
+        ) as executor:
             details = executor.map(self._get_security_details, tickers)
 
         return [d for d in details if d is not None]
 
-    def _get_security_details(self, ticker: str) -> dict:
-        """Builds the full SecurityCard-shaped dict for a single ticker."""
+    def _get_security_details(self, ticker: str) -> dict | None:
+        """Constructs a detailed SecurityCard dictionary for a single ticker.
+
+        Retrieves raw data from Yahoo Finance, formats key financial metrics
+        (such as P/E ratio, market cap, 52-week ranges, volume, and performance
+        history), and caches the resulting dictionary upon success.
+
+        Args:
+            ticker (str): The stock or ETF symbol to query.
+
+        Returns:
+            dict | None: A dictionary containing formatted security details,
+                or None if an error occurs during processing.
+        """
         cache_key = ("details", str(ticker).upper())
         cached = self._cache.get(cache_key)
         if cached is not None:
@@ -341,8 +445,9 @@ class FinanceManager:
             stock = yf.Ticker(ticker)
             info = stock.info
 
-            current_price = info.get("currentPrice") or info.get(
-                "regularMarketPrice") or 0.0
+            current_price = (
+                info.get("currentPrice") or info.get("regularMarketPrice") or 0.0
+            )
             previous_close = info.get("previousClose") or current_price
 
             # Capitalize type nicely (e.g. "EQUITY" -> "Equity")
@@ -353,8 +458,9 @@ class FinanceManager:
             pe = info.get("trailingPE")
             pe_formatted = round(pe, 1) if pe is not None else "N/A"
 
-            description = (info.get("longBusinessSummary")
-                           or info.get("description") or None)
+            description = (
+                info.get("longBusinessSummary") or info.get("description") or None
+            )
 
             details = {
                 "symbol": ticker.upper(),
@@ -366,21 +472,37 @@ class FinanceManager:
                 "change_since_close": round(float(current_price - previous_close), 2),
                 "pe_ratio": pe_formatted,
                 "market_cap": self._format_large_number(info.get("marketCap", 0)),
-                "high_52wk": round(float(info.get("fiftyTwoWeekHigh", current_price)), 2),
+                "high_52wk": round(
+                    float(info.get("fiftyTwoWeekHigh", current_price)), 2
+                ),
                 "low_52wk": round(float(info.get("fiftyTwoWeekLow", current_price)), 2),
                 "volume": self._format_large_number(info.get("volume", 0)),
                 "performanceHistory": self._get_performance_history(stock),
             }
         except Exception as e:
             self.logger.error(f"Failed to get details for '{
-                              ticker}': {e}", exc_info=True)
+                ticker}': {e}", exc_info=True)
             return None
 
         self._cache.set(cache_key, details)
         return details
 
-    def _get_performance_history(self, stock: yf.Ticker) -> dict:
-        """Builds chart data by pulling 1 year of history ONCE and slicing in memory."""
+        self._cache.set(cache_key, details)
+        return details
+
+    def _get_performance_history(self, stock: yf.Ticker) -> dict[str, list[dict]]:
+        """Constructs historical price chart data split into multiple timeframes.
+
+        Pulls 1 year of historical data once and slices it in memory to generate
+        timeframe series for 1 week, 1 month, 1 year, and year-to-date (YTD).
+
+        Args:
+            stock (yf.Ticker): The yfinance Ticker object to query.
+
+        Returns:
+            dict[str, list[dict]]: A dictionary mapping timeframes ("1W", "1M", "1Y", "YTD")
+                to lists of formatted point records containing "label" (date) and "p" (price).
+        """
         try:
             hist = stock.history(period="1y")
             if hist.empty:
@@ -394,10 +516,12 @@ class FinanceManager:
                     close_val = row["Close"]
                     if math.isnan(close_val):
                         continue
-                    rows.append({
-                        "label": idx.strftime("%b %d"),
-                        "p": round(float(close_val), 2)
-                    })
+                    rows.append(
+                        {
+                            "label": idx.strftime("%b %d"),
+                            "p": round(float(close_val), 2),
+                        }
+                    )
                 return rows
 
             now = hist.index[-1]
@@ -415,9 +539,18 @@ class FinanceManager:
             self.logger.error(f"Error building chart history: {e}")
 
     def get_news(self, limit: int = 5) -> list[dict]:
-        """
-        Fetches news formatted specifically for a lightweight UI card.
-        Falls back through standard market tickers if the target ticker has no news.
+        """Fetches market news articles formatted for UI card consumption.
+
+        Iterates through current market movers and fallback indices to gather unique
+        news articles, deduplicating by URL until the requested limit is reached.
+
+        Args:
+            limit (int, optional): Maximum number of news stories to return.
+                Defaults to 5.
+
+        Returns:
+            list[dict]: A list of news article dictionaries containing title, publisher,
+                url, image_url, and ticker metadata.
         """
         # ^GSPTSE is the Toronto index; "TSX" isn't a symbol Yahoo answers to
         fallback_tickers = ["SPY", "AAPL", "MSFT", "NVDA", "^GSPTSE"]
@@ -427,8 +560,8 @@ class FinanceManager:
         candidate_tickers = [q.get("symbol") for q in quotes]
         candidate_tickers.extend(fallback_tickers)
 
-        final_res = []          # news stories to return
-        seen_urls = set()       # urls of stories we've fully added to final_res
+        final_res = []  # news stories to return
+        seen_urls = set()  # urls of stories we've fully added to final_res
 
         for symbol in candidate_tickers:
             if len(final_res) >= limit:
@@ -447,21 +580,20 @@ class FinanceManager:
             for news_item in stories:
                 content = news_item.get("content", news_item)
                 title = content.get("title")
-                link = content.get("canonicalUrl", {}).get(
-                    "url") or content.get("link")
+                link = content.get("canonicalUrl", {}).get("url") or content.get("link")
 
-                if not (title and link):        # if nothing to show, go to next story
+                if not (title and link):  # if nothing to show, go to next story
                     continue
 
-                if link in seen_urls:           # check if we already added this story
+                if link in seen_urls:  # check if we already added this story
                     continue
 
                 provider = content.get("provider", {}).get(
-                    "displayName") or content.get("publisher", "Yahoo Finance")
+                    "displayName"
+                ) or content.get("publisher", "Yahoo Finance")
 
                 image_url = None
-                thumbnail_data = content.get(
-                    "thumbnail") or news_item.get("thumbnail")
+                thumbnail_data = content.get("thumbnail") or news_item.get("thumbnail")
 
                 if isinstance(thumbnail_data, dict):
                     resolutions = thumbnail_data.get("resolutions", [])
@@ -471,13 +603,15 @@ class FinanceManager:
                         image_url = thumbnail_data.get("url")
 
                 seen_urls.add(link)
-                final_res.append({
-                    "title": title,
-                    "publisher": provider,
-                    "url": link,
-                    "image_url": image_url,
-                    "ticker": ticker,
-                })
-                break   # exit iteration, onto the next
+                final_res.append(
+                    {
+                        "title": title,
+                        "publisher": provider,
+                        "url": link,
+                        "image_url": image_url,
+                        "ticker": ticker,
+                    }
+                )
+                break  # exit iteration, onto the next
 
         return final_res
