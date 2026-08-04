@@ -2,6 +2,7 @@ import logging
 import os
 import time
 import threading
+from zoneinfo import ZoneInfo
 from datetime import datetime, time as dt_time, timedelta
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
@@ -18,7 +19,8 @@ print(f"UPDATE_PORTFOLIO_VALUE={UPDATE_PORTFOLIO_VALUE}")
 # Absolute, because the working directory differs between `flask run` from
 # server/ and Vercel, which runs from the project root.
 CLIENT_DIST = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "client", "port_manager", "dist")
+    os.path.join(os.path.dirname(__file__), "..",
+                 "client", "port_manager", "dist")
 )
 
 app = Flask(__name__)
@@ -26,7 +28,8 @@ CORS(app)
 
 logging.basicConfig(level=logging.INFO)
 
-db_manager = DBManager(DB_CONNECTION_STR, flask_logger=app.logger, enable_cache=True)
+db_manager = DBManager(
+    DB_CONNECTION_STR, flask_logger=app.logger, enable_cache=True)
 finance_manager = FinanceManager(flask_logger=app.logger)
 portfolio_manager = PortfolioManager(db_manager, finance_manager)
 
@@ -56,9 +59,9 @@ def _claim_refresh() -> bool:
         return True
 
 
-def _check_market_open(dt: datetime = None) -> bool:
-    if dt is None:
-        dt = datetime.now()
+def _check_market_open() -> bool:
+    ny_tz = ZoneInfo("America/New_York")
+    dt = datetime.now(ny_tz)
 
     is_weekday = dt.weekday() < 5
 
@@ -79,7 +82,7 @@ def recurring_portfolio_value_update():
         sleep_seconds = (next_hour - now).total_seconds()
 
         app.logger.info(f"Next hourly portfolio update scheduled in {
-                int(sleep_seconds)} seconds at {next_hour.strftime('%H:%M:%S')}")
+            int(sleep_seconds)} seconds at {next_hour.strftime('%H:%M:%S')}")
         time.sleep(sleep_seconds)
 
         if _check_market_open():
@@ -99,7 +102,8 @@ def recurring_portfolio_value_update():
 
 
 if UPDATE_PORTFOLIO_VALUE:
-    bg_thread = threading.Thread(target=recurring_portfolio_value_update, daemon=True)
+    bg_thread = threading.Thread(
+        target=recurring_portfolio_value_update, daemon=True)
     bg_thread.start()
 
 
