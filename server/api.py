@@ -65,7 +65,7 @@ def _check_market_open() -> bool:
 
     is_weekday = dt.weekday() < 5
 
-    start_time = dt_time(9, 30)
+    start_time = dt_time(9, 0)
     end_time = dt_time(16, 30)
     is_during_hours = start_time <= dt.time() <= end_time
 
@@ -238,12 +238,12 @@ def analytics_drawdown():
 def buy():
     data = request.get_json()
     try:
-        ticker, quantity, price = data["ticker"], data["quantity"], data["price"]
+        ticker, quantity = data["ticker"], data["quantity"]
     except (KeyError, TypeError):
         return jsonify({"error": "ticker, quantity, and price are required"}), 400
 
     try:
-        portfolio_manager.buy(ticker, quantity, price)
+        portfolio_manager.buy(ticker, quantity)
         return jsonify({"status": "success"})
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
@@ -256,12 +256,12 @@ def buy():
 def sell():
     data = request.get_json()
     try:
-        ticker, quantity, price = data["ticker"], data["quantity"], data["price"]
+        ticker, quantity = data["ticker"], data["quantity"]
     except (KeyError, TypeError):
         return jsonify({"error": "ticker, quantity, and price are required"}), 400
 
     try:
-        portfolio_manager.sell(ticker, quantity, price)
+        portfolio_manager.sell(ticker, quantity)
         return jsonify({"status": "success"})
     except ValueError as e:
         return jsonify({"error": str(e)}), 400

@@ -73,7 +73,6 @@ export function Details() {
         body: JSON.stringify({
           ticker: symbol,
           quantity: Number(quantity),
-          price: Number(securityData.curr_price),
         }),
       });
 

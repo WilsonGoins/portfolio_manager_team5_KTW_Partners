@@ -586,7 +586,7 @@ class PortfolioManager:
             )
         return final_res
 
-    def buy(self, ticker: str, quantity: int, price: float) -> None:
+    def buy(self, ticker: str, quantity: int) -> None:
         """Executes a buy order for a security.
 
         Deducts the total purchase cost from cash, creates or updates the holding,
@@ -603,6 +603,12 @@ class PortfolioManager:
         if quantity <= 0:
             raise ValueError("quantity must be a positive number of shares")
 
+        yahoo_data = self.finance_manager.get_stock_by_ticker(ticker)
+        if yahoo_data is None:
+            raise ValueError("Holding must be a valid security.")
+
+        price = yahoo_data["current_price"]
+
         total_cost = quantity * price
         cash = self.get_cash_amount()
         if total_cost > cash:
@@ -610,14 +616,11 @@ class PortfolioManager:
 
         existing = self.db_manager.get_holding(ticker)
         if existing is None:
-            yahooData = self.finance_manager.get_stock_by_ticker(ticker)
-            if yahooData is None:
-                raise ValueError("Holding must be a valid security.")
             self.db_manager.add_holding(
                 Holding(
                     ticker,
-                    yahooData["name"],
-                    yahooData["stock_type"],
+                    yahoo_data["name"],
+                    yahoo_data["stock_type"],
                     quantity,
                 )
             )
@@ -631,7 +634,7 @@ class PortfolioManager:
             Transaction(None, ticker, quantity, price, datetime.now(), "buy")
         )
 
-    def sell(self, ticker: str, quantity: int, price: float) -> None:
+    def sell(self, ticker: str, quantity: int) -> None:
         """Executes a sell order for a security position.
 
         Adds sale proceeds to cash, decreases or removes the holding, and logs
@@ -648,15 +651,20 @@ class PortfolioManager:
         if quantity <= 0:
             raise ValueError("quantity must be a positive number of shares")
 
+        yahoo_data = self.finance_manager.get_stock_by_ticker(ticker)
+        if yahoo_data is None:
+            raise ValueError("Holding must be a valid security.")
+
         existing = self.db_manager.get_holding(ticker)
         if existing is None or existing.quantity_shares < quantity:
             raise ValueError("cannot sell more shares than are currently held")
 
         cash = self.get_cash_amount()
 
-        sellAmount = quantity * price
+        price = yahoo_data["current_price"]
+        sell_amount = quantity * price
 
-        self.db_manager.set_cash((cash + sellAmount))
+        self.db_manager.set_cash((cash + sell_amount))
 
         existing.quantity_shares -= quantity
         if existing.quantity_shares == 0:
