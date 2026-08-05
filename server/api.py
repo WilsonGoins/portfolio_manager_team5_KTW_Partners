@@ -29,7 +29,7 @@ CORS(app)
 logging.basicConfig(level=logging.INFO)
 
 db_manager = DBManager(
-    DB_CONNECTION_STR, flask_logger=app.logger, enable_cache=True)
+    DB_CONNECTION_STR, flask_logger=app.logger, enable_cache=False)
 finance_manager = FinanceManager(flask_logger=app.logger)
 portfolio_manager = PortfolioManager(db_manager, finance_manager)
 
