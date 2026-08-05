@@ -662,9 +662,9 @@ class PortfolioManager:
         cash = self.get_cash_amount()
 
         price = yahoo_data["current_price"]
-        sell_amount = quantity * price
+        sellAmount = quantity * price
 
-        self.db_manager.set_cash((cash + sell_amount))
+        self.db_manager.set_cash((cash + sellAmount))
 
         existing.quantity_shares -= quantity
         if existing.quantity_shares == 0:
