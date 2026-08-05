@@ -66,7 +66,7 @@ def _check_market_open() -> bool:
     is_weekday = dt.weekday() < 5
 
     start_time = dt_time(9, 30)
-    end_time = dt_time(16, 0)
+    end_time = dt_time(16, 30)
     is_during_hours = start_time <= dt.time() <= end_time
 
     return is_weekday and is_during_hours
@@ -99,6 +99,9 @@ def recurring_portfolio_value_update():
             except Exception as e:
                 app.logger.error(f"Error in background DB job: {
                                  e}", exc_info=True)
+        else:
+            app.logger.info(
+                "Update portfolio value was called while the market is closed.")
 
 
 if UPDATE_PORTFOLIO_VALUE:

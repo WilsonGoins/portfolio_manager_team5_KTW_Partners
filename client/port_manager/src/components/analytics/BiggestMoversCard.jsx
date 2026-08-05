@@ -1,5 +1,6 @@
 import React from 'react';
 import './BiggestMoversCard.css';
+import { useNavigate } from 'react-router-dom';
 
 const currency = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -16,9 +17,15 @@ const currency = new Intl.NumberFormat('en-US', {
 function MoverRow({ type, mover }) {
   const isGainer = type === 'gainer';
   const label = isGainer ? 'Top Performer' : 'Weakest Performer';
+  const navigate = useNavigate();
+
+
+  const handleClick = (symbol) => {
+      navigate(`/details/${symbol}`);
+  };
 
   return (
-    <div className={`mover-row mover-row-${type}`}>
+    <div className={`mover-row mover-row-${type}`} onClick={() => {!mover ? console.log("Unable to get details of null mover.") : handleClick(mover.symbol)}}>
       <span className={`mover-pill mover-pill-${type}`}>{label}</span>
 
       {!mover ? (

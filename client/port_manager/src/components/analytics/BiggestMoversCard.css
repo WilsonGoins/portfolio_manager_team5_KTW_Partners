@@ -22,6 +22,11 @@
   border-radius: 10px;
 }
 
+
+.mover-row:hover {
+  cursor: pointer;
+}
+
 .mover-row-gainer {
   background-color: #ecfdf5;
 }
