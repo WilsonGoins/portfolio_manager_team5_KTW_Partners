@@ -2,6 +2,8 @@
 
 A portfolio management app created by Senior Developers at KTW Partners.
 
+[CLICK HERE FOR PRESENTATIONS SLIDES](https://docs.google.com/presentation/d/1gFFlSkaf-wEqSfy_EvY7Nyl_Z3jy-NEZUqkUjtthuK4/edit?usp=sharing)
+
 ## Prerequisites
 
 - **Python 3.12+**
